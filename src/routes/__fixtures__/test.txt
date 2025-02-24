@@ -1,0 +1,10 @@
+This is a sample legal document.
+AGREEMENT BETWEEN PARTIES
+
+This agreement is made on [DATE] between Party A and Party B.
+
+1. TERMS
+Both parties agree to the following terms...
+
+2. CONDITIONS
+The conditions of this agreement are... 
