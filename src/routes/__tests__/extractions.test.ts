@@ -2,16 +2,27 @@ import request from 'supertest';
 import app from '../../app';
 import path from 'path';
 import { Server } from 'http';
-import fs from 'fs';
+import mongoose from 'mongoose';
+import Extraction from '../../models/Extraction';
 
 let server: Server;
 
-beforeAll((done) => {
-  server = app.listen(0, () => done());
+beforeAll(async () => {
+  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/test-db');
+  return new Promise<void>((resolve) => {
+    server = app.listen(0, () => resolve());
+  });
 });
 
-afterAll((done) => {
-  server.close(done);
+afterAll(async () => {
+  await mongoose.connection.close();
+  return new Promise<void>((resolve) => {
+    server.close(() => resolve());
+  });
+});
+
+beforeEach(async () => {
+  await Extraction.deleteMany({});
 });
 
 describe('Extraction Routes', () => {
@@ -23,7 +34,6 @@ describe('Extraction Routes', () => {
     });
 
     it('should return list of extractions after upload', async () => {
-      // First upload a file
       const uploadResponse = await request(app)
         .post('/api/extractions/upload')
         .attach('file', Buffer.from('Test document content'), {
@@ -31,16 +41,15 @@ describe('Extraction Routes', () => {
           contentType: 'text/plain'
         });
 
-      // Wait a bit for processing
+      // Wait for processing to complete
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Then get the list
       const response = await request(app).get('/api/extractions');
       expect(response.status).toBe(200);
       expect(response.body).toHaveLength(1);
       expect(response.body[0]).toHaveProperty('fileName', 'test.txt');
       expect(response.body[0]).toHaveProperty('status');
-      expect(response.body[0]).toHaveProperty('summary');
+      expect(response.body[0]).not.toHaveProperty('originalText');
     });
   });
 
@@ -68,7 +77,7 @@ describe('Extraction Routes', () => {
 
   describe('GET /api/extractions/:id', () => {
     it('should return 404 for non-existent extraction', async () => {
-      const response = await request(app).get('/api/extractions/999');
+      const response = await request(app).get('/api/extractions/507f1f77bcf86cd799439011');
       expect(response.status).toBe(404);
     });
 

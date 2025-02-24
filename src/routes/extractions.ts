@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import Extraction, { IExtraction } from '../models/Extraction';
+import mongoose from 'mongoose';
 
 const router = Router();
 
@@ -277,10 +278,17 @@ const uploadDocument = async (req: Request, res: Response): Promise<void> => {
  */
 const getExtractionById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const extraction = await Extraction.findById(req.params.id).lean();
+    const { id } = req.params;
+    
+    // Check if ID is valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    const extraction = await Extraction.findById(id).lean();
     
     if (extraction) {
-      // Include originalText only in individual extraction fetch
       res.json(extraction);
     } else {
       res.status(404).json({ message: 'Extraction not found' });
