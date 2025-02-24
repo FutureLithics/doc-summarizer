@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
+import Extraction, { IExtraction } from '../models/Extraction';
 
 const router = Router();
 
@@ -30,7 +31,7 @@ interface ExtractionResponse {
 }
 
 // In-memory store for extractions
-const extractions = new Map<string, Extraction>();
+const extractions = new Map<string, ExtractionResponse>();
 
 // Configure multer for file upload
 const upload = multer({
@@ -93,6 +94,28 @@ const processDocument = async (buffer: Buffer, mimetype: string, fileName: strin
 
 /**
  * @swagger
+ * components:
+ *   schemas:
+ *     Extraction:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         status:
+ *           type: string
+ *           enum: [completed, processing, failed]
+ *         fileName:
+ *           type: string
+ *         documentType:
+ *           type: string
+ *         summary:
+ *           type: string
+ *         createdAt:
+ *           type: string
+ */
+
+/**
+ * @swagger
  * /extractions:
  *   get:
  *     tags: [Extractions]
@@ -121,23 +144,12 @@ const processDocument = async (buffer: Buffer, mimetype: string, fileName: strin
  *                     type: string
  */
 const getExtractions = async (_: Request, res: Response): Promise<void> => {
-  const extractionsList = Array.from(extractions.values()).map(({ 
-    id, 
-    status, 
-    createdAt, 
-    fileName, 
-    documentType, 
-    summary 
-  }): ExtractionResponse => ({
-    id,
-    status,
-    createdAt,
-    fileName,
-    documentType,
-    summary
-  }));
-  
-  res.json(extractionsList);
+  try {
+    const extractions = await Extraction.find().lean().select('-originalText');
+    res.json(extractions);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch extractions' });
+  }
 };
 
 /**
@@ -146,30 +158,42 @@ const getExtractions = async (_: Request, res: Response): Promise<void> => {
  *   post:
  *     tags: [Extractions]
  *     summary: Upload document for extraction
+ *     operationId: uploadDocument
  *     requestBody:
  *       required: true
  *       content:
  *         multipart/form-data:
  *           schema:
- *             type: object
+ *             type: 'object'
+ *             required:
+ *               - file
  *             properties:
  *               file:
- *                 type: string
- *                 format: binary
+ *                 type: 'string'
+ *                 format: 'binary'
+ *                 description: 'Upload a PDF, TXT, or DOCX file'
+ *           encoding:
+ *             file:
+ *               style: 'form'
+ *               explode: true
+ *               allowReserved: true
  *     responses:
  *       201:
  *         description: Document processing started
  *         content:
  *           application/json:
  *             schema:
- *               type: object
+ *               type: 'object'
  *               properties:
  *                 message:
- *                   type: string
+ *                   type: 'string'
+ *                   example: Document processing started
  *                 extractionId:
- *                   type: string
+ *                   type: 'string'
+ *                   example: 1234567890
  *                 fileName:
- *                   type: string
+ *                   type: 'string'
+ *                   example: document.pdf
  */
 const uploadDocument = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -178,38 +202,36 @@ const uploadDocument = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Store file data before async processing
     const fileBuffer = req.file.buffer;
     const fileType = req.file.mimetype;
     const fileName = req.file.originalname;
 
-    const id = Date.now().toString();
-    const extraction: Extraction = {
-      id,
+    const extraction = new Extraction({
       status: 'processing',
-      createdAt: new Date().toISOString(),
       fileName,
       documentType: fileType
-    };
+    });
 
-    extractions.set(id, extraction);
+    await extraction.save();
 
     // Process document asynchronously
     processDocument(fileBuffer, fileType, fileName)
-      .then(summary => {
-        extraction.status = 'completed';
-        extraction.summary = summary;
-        extraction.originalText = fileBuffer.toString('utf-8');
-        extractions.set(id, extraction);
+      .then(async summary => {
+        await Extraction.findByIdAndUpdate(extraction._id, {
+          status: 'completed',
+          summary,
+          originalText: fileBuffer.toString('utf-8')
+        });
       })
-      .catch(() => {
-        extraction.status = 'failed';
-        extractions.set(id, extraction);
+      .catch(async () => {
+        await Extraction.findByIdAndUpdate(extraction._id, {
+          status: 'failed'
+        });
       });
 
     res.status(201).json({ 
       message: 'Document processing started',
-      extractionId: id,
+      extractionId: extraction._id,
       fileName
     });
   } catch (error) {
@@ -254,21 +276,17 @@ const uploadDocument = async (req: Request, res: Response): Promise<void> => {
  *         description: Extraction not found
  */
 const getExtractionById = async (req: Request, res: Response): Promise<void> => {
-  const { id } = req.params;
-  const extraction = extractions.get(id);
-  
-  if (extraction) {
-    const { id, status, createdAt, fileName, documentType, summary }: ExtractionResponse = extraction;
-    res.json({
-      id,
-      status,
-      createdAt,
-      fileName,
-      documentType,
-      summary
-    });
-  } else {
-    res.status(404).json({ message: 'Extraction not found' });
+  try {
+    const extraction = await Extraction.findById(req.params.id).lean();
+    
+    if (extraction) {
+      // Include originalText only in individual extraction fetch
+      res.json(extraction);
+    } else {
+      res.status(404).json({ message: 'Extraction not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch extraction' });
   }
 };
 
