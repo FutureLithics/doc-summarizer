@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import Extraction, { IExtraction } from '../models/Extraction';
 import mongoose from 'mongoose';
+// Add pdf-parse import for proper PDF text extraction
+import pdfParse from 'pdf-parse';
 
 const router = Router();
 
@@ -57,6 +59,26 @@ const uploadMiddleware = (req: Request, res: Response, next: Function) => {
   });
 };
 
+const extractPdfText = async (buffer: Buffer): Promise<string> => {
+  try {
+    const data = await pdfParse(buffer);
+    
+    // Clean up the extracted text
+    const cleanText = data.text
+      .replace(/\s+/g, ' ') // Replace multiple whitespace with single space
+      .replace(/\n+/g, '\n') // Replace multiple newlines with single newline
+      .trim();
+    
+    if (!cleanText || cleanText.length === 0) {
+      throw new Error('No text content found in PDF');
+    }
+    
+    return cleanText;
+  } catch (error) {
+    throw new Error(`Failed to extract text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
 // Basic text summarization function
 const summarizeText = (text: string): string => {
   // Split into sentences and get first few
@@ -80,7 +102,7 @@ const processDocument = async (buffer: Buffer, mimetype: string, fileName: strin
       break;
     case 'application/pdf':
       // Simple PDF text extraction (in real app, use pdf-parse or similar)
-      text = buffer.toString('utf-8').replace(/[^a-zA-Z0-9\s.]/g, '');
+      text = await extractPdfText(buffer);
       break;
     case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
       // Simple DOCX text extraction (in real app, use mammoth or similar)
@@ -218,10 +240,21 @@ const uploadDocument = async (req: Request, res: Response): Promise<void> => {
     // Process document asynchronously
     processDocument(fileBuffer, fileType, fileName)
       .then(async summary => {
+        // For PDF files, store the properly extracted text instead of raw buffer
+        let originalText = fileBuffer.toString('utf-8');
+        if (fileType === 'application/pdf') {
+          try {
+            originalText = await extractPdfText(fileBuffer);
+          } catch (error) {
+            // Fallback to buffer conversion if PDF extraction fails
+            originalText = fileBuffer.toString('utf-8');
+          }
+        }
+        
         await Extraction.findByIdAndUpdate(extraction._id, {
           status: 'completed',
           summary,
-          originalText: fileBuffer.toString('utf-8')
+          originalText
         });
       })
       .catch(async () => {
