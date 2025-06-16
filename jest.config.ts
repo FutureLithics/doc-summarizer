@@ -1,14 +1,19 @@
 import type { Config } from '@jest/types';
 
-const config: Config.InitialOptions = {
+export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  testMatch: ['**/__tests__/**/*.test.ts'],
-  verbose: true,
-  forceExit: true,
-  clearMocks: true,
-  resetMocks: true,
-  restoreMocks: true
-};
-
-export default config; 
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  testMatch: [
+    '**/__tests__/**/*.test.ts',
+    '**/?(*.)+(spec|test).ts'
+  ],
+  testTimeout: 30000, // Increased timeout for UI tests
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/__tests__/**',
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+}; 

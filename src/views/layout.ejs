@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> | Document Extraction Service</title>
+    <link href="/css/styles.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <header class="gradient-header text-white p-8 rounded-lg mb-8 text-center animate-fade-in">
+            <h1 class="text-4xl md:text-5xl font-bold mb-2">📄 Document Extraction Service</h1>
+            <p class="text-blue-100 text-lg">Intelligent document processing and summarization</p>
+        </header>
+        
+        <main class="animate-fade-in">
+            <%- include(page) %>
+        </main>
+        
+        <footer class="text-center py-6 mt-12 text-gray-600 border-t border-gray-200">
+            <p>&copy; <%= new Date().getFullYear() %> Document Extraction Service</p>
+        </footer>
+    </div>
+</body>
+</html> 

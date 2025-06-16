@@ -1,0 +1,1 @@
+First sentence of the document. Second sentence with more details. Third sentence to test summarization. Fourth sentence that should not appear in summary.
