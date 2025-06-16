@@ -108,16 +108,124 @@ describe('UI Tests', () => {
       expect(heading).toContain('Document Extractions');
       
       // Check that extraction count is displayed
-      const countText = await page.$eval('.text-sm', el => el.textContent);
-      expect(countText).toMatch(/Total extractions found: \d+/);
+      const countText = await page.$eval('h3', el => el.textContent);
+      expect(countText).toMatch(/Recent Extractions \(\d+\)/);
     });
 
-    it('should display extraction data when available', async () => {
+    it('should display file upload form', async () => {
       await page.goto(`http://localhost:${TEST_PORT}/extractions`);
       
-      // Check if extractions are shown (this will depend on test data)
-      const extractionElements = await page.$('.bg-gray-100');
-      expect(extractionElements).toBeTruthy();
+      // Check upload form exists
+      const uploadForm = await page.$('#uploadForm');
+      expect(uploadForm).toBeTruthy();
+      
+      // Check form action
+      const formAction = await page.$eval('#uploadForm', el => el.getAttribute('action'));
+      expect(formAction).toBe('/api/extractions/upload');
+      
+      // Check file input exists
+      const fileInput = await page.$('#file');
+      expect(fileInput).toBeTruthy();
+      
+      // Check file input accepts correct file types
+      const acceptAttr = await page.$eval('#file', el => el.getAttribute('accept'));
+      expect(acceptAttr).toBe('.pdf,.doc,.docx,.txt');
+      
+      // Check submit button exists
+      const submitBtn = await page.$('button[type="submit"]');
+      expect(submitBtn).toBeTruthy();
+      
+      const submitBtnText = await page.$eval('button[type="submit"]', el => el.textContent);
+      expect(submitBtnText).toContain('Upload & Extract');
+    });
+
+    it('should display extractions table when data is available', async () => {
+      await page.goto(`http://localhost:${TEST_PORT}/extractions`);
+      
+      // Check if table exists (will depend on whether there's data)
+      const tableExists = await page.$('table') !== null;
+      const emptyStateExists = await page.$('.text-center h3') !== null;
+      
+      // Either table or empty state should exist
+      expect(tableExists || emptyStateExists).toBe(true);
+      
+      if (tableExists) {
+        // If table exists, check table headers
+        const headers = await page.$$eval('th', elements => 
+          elements.map(el => el.textContent?.trim())
+        );
+        expect(headers).toContain('File Name');
+        expect(headers).toContain('Status');
+        expect(headers).toContain('Summary');
+        expect(headers).toContain('Created');
+      } else {
+        // If empty state, check message
+        const emptyMessage = await page.$eval('.text-center h3', el => el.textContent);
+        expect(emptyMessage).toContain('No extractions yet');
+      }
+    });
+
+    it('should show upload status when form is submitted', async () => {
+      await page.goto(`http://localhost:${TEST_PORT}/extractions`);
+      
+      // Check that upload status is initially hidden
+      const statusDiv = await page.$('#uploadStatus');
+      const isHidden = await page.$eval('#uploadStatus', el => el.classList.contains('hidden'));
+      expect(isHidden).toBe(true);
+      
+      // Create a temporary file for testing (this won't actually upload due to test environment)
+      const fileInput = await page.$('#file');
+      expect(fileInput).toBeTruthy();
+      
+      // We can't easily test actual file upload in this environment,
+      // but we can test the JavaScript behavior
+      await page.evaluate(() => {
+        const form = document.getElementById('uploadForm') as HTMLFormElement;
+        const event = new Event('submit');
+        form.dispatchEvent(event);
+      });
+      
+      // Check that status becomes visible after form submission event
+      const isStillHidden = await page.$eval('#uploadStatus', el => el.classList.contains('hidden'));
+      expect(isStillHidden).toBe(false);
+    });
+
+    it('should display status badges with correct colors', async () => {
+      await page.goto(`http://localhost:${TEST_PORT}/extractions`);
+      
+      // Check if there are any status badges in the table
+      const statusBadges = await page.$$('.inline-flex.px-2.py-1');
+      
+      if (statusBadges.length > 0) {
+        // Check that status badges have appropriate styling classes
+        for (const badge of statusBadges) {
+          const classes = await badge.evaluate(el => el.className);
+          expect(classes).toMatch(/(bg-green-100|bg-yellow-100|bg-red-100|bg-gray-100)/);
+          expect(classes).toMatch(/(text-green-800|text-yellow-800|text-red-800|text-gray-800)/);
+        }
+      }
+    });
+
+    it('should handle table responsiveness', async () => {
+      await page.goto(`http://localhost:${TEST_PORT}/extractions`);
+      
+      // Check that table container has overflow-x-auto for mobile responsiveness
+      const tableContainer = await page.$('.overflow-x-auto');
+      expect(tableContainer).toBeTruthy();
+      
+      // Test mobile viewport
+      await page.setViewport({ width: 375, height: 667 });
+      await page.reload();
+      
+      // Table should still be accessible
+      const table = await page.$('table');
+      if (table) {
+        const tableWidth = await table.evaluate(el => el.scrollWidth);
+        expect(tableWidth).toBeGreaterThan(0);
+      }
+      
+      // Reset viewport
+      await page.setViewport({ width: 1280, height: 720 });
     });
   });
 
