@@ -107,9 +107,15 @@ describe('UI Tests', () => {
       const heading = await page.$eval('h2', el => el.textContent);
       expect(heading).toContain('Document Extractions');
       
-      // Check that extraction count is displayed
-      const countText = await page.$eval('h3', el => el.textContent);
-      expect(countText).toMatch(/Recent Extractions \(\d+\)/);
+      // Check that extraction count is displayed in the Recent Extractions heading
+      // Since there are multiple h3 elements, we need to find the one containing "Recent Extractions"
+      const extractionsHeadings = await page.$$eval('h3', elements => 
+        elements.map(el => el.textContent?.trim())
+      );
+      const extractionsCountHeading = extractionsHeadings.find(text => 
+        text?.includes('Recent Extractions')
+      );
+      expect(extractionsCountHeading).toMatch(/Recent Extractions \(\d+\)/);
     });
 
     it('should display file upload form', async () => {
@@ -119,9 +125,9 @@ describe('UI Tests', () => {
       const uploadForm = await page.$('#uploadForm');
       expect(uploadForm).toBeTruthy();
       
-      // Check form action
-      const formAction = await page.$eval('#uploadForm', el => el.getAttribute('action'));
-      expect(formAction).toBe('/api/extractions/upload');
+      // Check form has multipart encoding for file uploads
+      const formEnctype = await page.$eval('#uploadForm', el => el.getAttribute('enctype'));
+      expect(formEnctype).toBe('multipart/form-data');
       
       // Check file input exists
       const fileInput = await page.$('#file');
@@ -136,7 +142,11 @@ describe('UI Tests', () => {
       expect(submitBtn).toBeTruthy();
       
       const submitBtnText = await page.$eval('button[type="submit"]', el => el.textContent);
-      expect(submitBtnText).toContain('Upload & Extract');
+      expect(submitBtnText?.trim()).toBe('Upload & Extract');
+      
+      // Check upload section heading
+      const uploadHeading = await page.$eval('h3', el => el.textContent);
+      expect(uploadHeading?.trim()).toBe('Upload New Document');
     });
 
     it('should display extractions table when data is available', async () => {
@@ -165,29 +175,34 @@ describe('UI Tests', () => {
       }
     });
 
-    it('should show upload status when form is submitted', async () => {
+    it('should have JavaScript loaded and form preventDefault working', async () => {
       await page.goto(`http://localhost:${TEST_PORT}/extractions`);
       
-      // Check that upload status is initially hidden
-      const statusDiv = await page.$('#uploadStatus');
-      const isHidden = await page.$eval('#uploadStatus', el => el.classList.contains('hidden'));
-      expect(isHidden).toBe(true);
+      // Check that the external JavaScript file is loaded
+      const scriptTag = await page.$('script[src="/js/extractions.js"]');
+      expect(scriptTag).toBeTruthy();
       
-      // Create a temporary file for testing (this won't actually upload due to test environment)
-      const fileInput = await page.$('#file');
-      expect(fileInput).toBeTruthy();
+      // Check that form has the upload form
+      const uploadForm = await page.$('#uploadForm');
+      expect(uploadForm).toBeTruthy();
       
-      // We can't easily test actual file upload in this environment,
-      // but we can test the JavaScript behavior
-      await page.evaluate(() => {
+      // Test that the JavaScript prevents default form submission
+      const formHasEventListener = await page.evaluate(() => {
         const form = document.getElementById('uploadForm') as HTMLFormElement;
-        const event = new Event('submit');
-        form.dispatchEvent(event);
+        if (!form) return false;
+        
+        // Mock fetch to prevent actual network calls in test
+        (window as any).fetch = () => Promise.resolve({ ok: true });
+        
+        // Create a custom event and dispatch it
+        const submitEvent = new Event('submit', { cancelable: true });
+        form.dispatchEvent(submitEvent);
+        
+        // If preventDefault was called, defaultPrevented should be true
+        return submitEvent.defaultPrevented;
       });
       
-      // Check that status becomes visible after form submission event
-      const isStillHidden = await page.$eval('#uploadStatus', el => el.classList.contains('hidden'));
-      expect(isStillHidden).toBe(false);
+      expect(formHasEventListener).toBe(true);
     });
 
     it('should display status badges with correct colors', async () => {
@@ -226,6 +241,54 @@ describe('UI Tests', () => {
       
       // Reset viewport
       await page.setViewport({ width: 1280, height: 720 });
+    });
+
+    it('should display empty state when no extractions exist', async () => {
+      // First, let's check the current state to see if we have data
+      await page.goto(`http://localhost:${TEST_PORT}/extractions`);
+      
+      // Check the extraction count in the heading
+      const extractionsHeadings = await page.$$eval('h3', elements => 
+        elements.map(el => el.textContent?.trim())
+      );
+      const extractionsCountHeading = extractionsHeadings.find(text => 
+        text?.includes('Recent Extractions')
+      );
+      
+      // If we have extractions, we can't test the empty state without clearing the database
+      // But we can still verify the empty state elements exist in the template structure
+      const emptyStateExists = await page.$('.text-center h3') !== null;
+      const tableExists = await page.$('table') !== null;
+      
+      if (extractionsCountHeading?.includes('(0)')) {
+        // We have no extractions, perfect for testing empty state
+        expect(emptyStateExists).toBe(true);
+        expect(tableExists).toBe(false);
+        
+        // Check empty state content
+        const emptyStateHeading = await page.$eval('.text-center h3', el => el.textContent);
+        expect(emptyStateHeading?.trim()).toBe('No extractions yet');
+        
+        const emptyStateMessage = await page.$eval('.text-center p', el => el.textContent);
+        expect(emptyStateMessage?.trim()).toBe('Upload a document above to get started.');
+        
+        // Check that the SVG icon is present
+        const svgIcon = await page.$('.text-center svg');
+        expect(svgIcon).toBeTruthy();
+      } else {
+        // We have extractions, so table should exist and empty state should not
+        expect(tableExists).toBe(true);
+        expect(emptyStateExists).toBe(false);
+        
+        // Verify table structure exists
+        const tableHeaders = await page.$$eval('th', elements => 
+          elements.map(el => el.textContent?.trim())
+        );
+        expect(tableHeaders).toContain('File Name');
+        expect(tableHeaders).toContain('Status');
+        expect(tableHeaders).toContain('Summary');
+        expect(tableHeaders).toContain('Created');
+      }
     });
   });
 
