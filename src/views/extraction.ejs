@@ -1,0 +1,188 @@
+<!-- src/views/extraction.ejs -->
+<div class="space-y-8">
+    <!-- Navigation Breadcrumb -->
+    <nav class="flex items-center space-x-2 text-sm text-gray-600">
+        <a href="/" class="hover:text-blue-600 transition-colors">Home</a>
+        <span>/</span>
+        <a href="/extractions" class="hover:text-blue-600 transition-colors">Extractions</a>
+        <span>/</span>
+        <span class="text-gray-800 font-medium">Extraction Details</span>
+    </nav>
+
+    <!-- Main Content Card -->
+    <div class="card">
+        <!-- Header -->
+        <div class="border-b border-gray-200 pb-6 mb-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                        📄 <%= extraction.fileName || 'Unknown Document' %>
+                    </h1>
+                    <div class="flex items-center space-x-4">
+                        <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full 
+                            <% if (extraction.status === 'completed') { %>
+                                bg-green-100 text-green-800
+                            <% } else if (extraction.status === 'processing') { %>
+                                bg-yellow-100 text-yellow-800
+                            <% } else if (extraction.status === 'failed') { %>
+                                bg-red-100 text-red-800
+                            <% } else { %>
+                                bg-gray-100 text-gray-800
+                            <% } %>
+                        ">
+                            <%= extraction.status %>
+                        </span>
+                        <span class="text-sm text-gray-500">
+                            Created: <%= new Date(extraction.createdAt).toLocaleString() %>
+                        </span>
+                        <% if (extraction.updatedAt && extraction.updatedAt !== extraction.createdAt) { %>
+                            <span class="text-sm text-gray-500">
+                                Updated: <%= new Date(extraction.updatedAt).toLocaleString() %>
+                            </span>
+                        <% } %>
+                    </div>
+                </div>
+                <div class="mt-4 md:mt-0">
+                    <a href="/extractions" class="btn-primary">
+                        <span class="mr-2">←</span>
+                        Back to List
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Document Information -->
+        <div class="grid md:grid-cols-2 gap-8 mb-8">
+            <!-- File Details -->
+            <div class="bg-gray-50 rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <span class="text-xl mr-2">📋</span>
+                    File Information
+                </h3>
+                <dl class="space-y-3">
+                    <div>
+                        <dt class="text-sm font-medium text-gray-600">File Name</dt>
+                        <dd class="text-sm text-gray-900 font-mono bg-white px-2 py-1 rounded border">
+                            <%= extraction.fileName || 'Unknown' %>
+                        </dd>
+                    </div>
+                    <% if (extraction.fileSize) { %>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-600">File Size</dt>
+                            <dd class="text-sm text-gray-900">
+                                <%= (extraction.fileSize / 1024).toFixed(2) %> KB
+                            </dd>
+                        </div>
+                    <% } %>
+                    <% if (extraction.mimeType) { %>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-600">File Type</dt>
+                            <dd class="text-sm text-gray-900"><%= extraction.mimeType %></dd>
+                        </div>
+                    <% } %>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-600">Extraction ID</dt>
+                        <dd class="text-xs text-gray-700 font-mono bg-white px-2 py-1 rounded border break-all">
+                            <%= extraction._id %>
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+
+            <!-- Processing Information -->
+            <div class="bg-blue-50 rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-blue-800 mb-4 flex items-center">
+                    <span class="text-xl mr-2">⚙️</span>
+                    Processing Details
+                </h3>
+                <dl class="space-y-3">
+                    <div>
+                        <dt class="text-sm font-medium text-blue-700">Status</dt>
+                        <dd class="text-sm text-blue-900 capitalize"><%= extraction.status %></dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-blue-700">Created</dt>
+                        <dd class="text-sm text-blue-900">
+                            <%= new Date(extraction.createdAt).toLocaleString() %>
+                        </dd>
+                    </div>
+                    <% if (extraction.processingTime) { %>
+                        <div>
+                            <dt class="text-sm font-medium text-blue-700">Processing Time</dt>
+                            <dd class="text-sm text-blue-900"><%= extraction.processingTime %>ms</dd>
+                        </div>
+                    <% } %>
+                    <% if (extraction.error) { %>
+                        <div>
+                            <dt class="text-sm font-medium text-red-700">Error</dt>
+                            <dd class="text-sm text-red-900 bg-red-100 px-2 py-1 rounded border">
+                                <%= extraction.error %>
+                            </dd>
+                        </div>
+                    <% } %>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Summary Section -->
+        <% if (extraction.summary) { %>
+            <div class="bg-white border border-gray-200 rounded-lg p-6 mb-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <span class="text-xl mr-2">📝</span>
+                    Summary
+                </h3>
+                <div class="prose prose-sm max-w-none">
+                    <p class="text-gray-700 leading-relaxed whitespace-pre-wrap"><%= extraction.summary %></p>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- Full Text Content -->
+        <% if (extraction.text) { %>
+            <div class="bg-white border border-gray-200 rounded-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+                        <span class="text-xl mr-2">📄</span>
+                        Extracted Text
+                    </h3>
+                    <span class="text-sm text-gray-500">
+                        <%= extraction.text.length %> characters
+                    </span>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <pre class="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed"><%= extraction.text %></pre>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button 
+                        class="copy-text-btn text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-colors duration-200"
+                    >
+                        Copy Text
+                    </button>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- No Content Message -->
+        <% if (!extraction.summary && !extraction.text) { %>
+            <div class="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+                <div class="text-gray-400 mb-4">
+                    <svg class="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+                <h3 class="text-sm font-medium text-gray-900 mb-1">No extracted content available</h3>
+                <p class="text-sm text-gray-500">
+                    <% if (extraction.status === 'processing') { %>
+                        The document is still being processed.
+                    <% } else if (extraction.status === 'failed') { %>
+                        The extraction failed. Please try uploading the document again.
+                    <% } else { %>
+                        No text content could be extracted from this document.
+                    <% } %>
+                </p>
+            </div>
+        <% } %>
+    </div>
+</div>
+
+<script src="/js/extraction.js"></script>

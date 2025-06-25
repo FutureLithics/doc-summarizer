@@ -432,4 +432,40 @@ describe('Extraction Routes', () => {
       }
     });
   });
+
+  describe('DELETE /api/extractions/:id', () => {
+    it('should delete an existing extraction', async () => {
+      // First upload a file
+      const uploadResponse = await request(app)
+        .post('/api/extractions/upload')
+        .attach('file', path.join(__dirname, '../__fixtures__/test.txt'));
+
+      const { extractionId } = uploadResponse.body;
+
+      // Verify it exists
+      const getResponse = await request(app).get(`/api/extractions/${extractionId}`);
+      expect(getResponse.status).toBe(200);
+
+      // Delete it
+      const deleteResponse = await request(app).delete(`/api/extractions/${extractionId}`);
+      expect(deleteResponse.status).toBe(200);
+      expect(deleteResponse.body).toHaveProperty('message', 'Extraction deleted successfully');
+
+      // Verify it's gone
+      const getAfterDeleteResponse = await request(app).get(`/api/extractions/${extractionId}`);
+      expect(getAfterDeleteResponse.status).toBe(404);
+    });
+
+    it('should return 404 for non-existent extraction', async () => {
+      const response = await request(app).delete('/api/extractions/507f1f77bcf86cd799439011');
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('message', 'Extraction not found');
+    });
+
+    it('should return 404 for invalid extraction ID', async () => {
+      const response = await request(app).delete('/api/extractions/invalid-id');
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('message', 'Extraction not found');
+    });
+  });
 }); 

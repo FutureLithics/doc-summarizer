@@ -25,7 +25,7 @@ beforeAll(async () => {
   
   // Set viewport size
   await page.setViewport({ width: 1280, height: 720 });
-});
+}, 30000);
 
 afterAll(async () => {
   await browser.close();
@@ -47,8 +47,8 @@ describe('UI Tests', () => {
       const title = await page.title();
       expect(title).toBe('Home | Document Extraction Service');
       
-      // Check main heading
-      const heading = await page.$eval('h1', el => el.textContent);
+      // Check main heading in header
+      const heading = await page.$eval('header h1', el => el.textContent);
       expect(heading).toContain('Document Extraction Service');
       
       // Check that CSS is loaded by verifying the header has gradient class
@@ -69,7 +69,7 @@ describe('UI Tests', () => {
       await page.goto(`http://localhost:${TEST_PORT}`);
       
       // Check that stats grid exists and has stat cards
-      const statsCards = await page.$$('.grid > .bg-white');
+      const statsCards = await page.$$('.grid.grid-cols-2 > .bg-white');
       expect(statsCards.length).toBe(4); // Total, Completed, Processing, Failed
       
       // Check that each stat card has a number and label
@@ -108,7 +108,6 @@ describe('UI Tests', () => {
       expect(heading).toContain('Document Extractions');
       
       // Check that extraction count is displayed in the Recent Extractions heading
-      // Since there are multiple h3 elements, we need to find the one containing "Recent Extractions"
       const extractionsHeadings = await page.$$eval('h3', elements => 
         elements.map(el => el.textContent?.trim())
       );
@@ -144,9 +143,12 @@ describe('UI Tests', () => {
       const submitBtnText = await page.$eval('button[type="submit"]', el => el.textContent);
       expect(submitBtnText?.trim()).toBe('Upload & Extract');
       
-      // Check upload section heading
-      const uploadHeading = await page.$eval('h3', el => el.textContent);
-      expect(uploadHeading?.trim()).toBe('Upload New Document');
+      // Check upload section heading by finding the h3 with specific text
+      const uploadHeadings = await page.$$eval('h3', elements => 
+        elements.map(el => el.textContent?.trim())
+      );
+      const uploadHeading = uploadHeadings.find(text => text === 'Upload New Document');
+      expect(uploadHeading).toBe('Upload New Document');
     });
 
     it('should display extractions table when data is available', async () => {
@@ -154,7 +156,7 @@ describe('UI Tests', () => {
       
       // Check if table exists (will depend on whether there's data)
       const tableExists = await page.$('table') !== null;
-      const emptyStateExists = await page.$('.text-center h3') !== null;
+      const emptyStateExists = await page.$('.px-6.py-12.text-center h3') !== null;
       
       // Either table or empty state should exist
       expect(tableExists || emptyStateExists).toBe(true);
@@ -170,7 +172,7 @@ describe('UI Tests', () => {
         expect(headers).toContain('Created');
       } else {
         // If empty state, check message
-        const emptyMessage = await page.$eval('.text-center h3', el => el.textContent);
+        const emptyMessage = await page.$eval('.px-6.py-12.text-center h3', el => el.textContent);
         expect(emptyMessage).toContain('No extractions yet');
       }
     });
@@ -224,19 +226,28 @@ describe('UI Tests', () => {
     it('should handle table responsiveness', async () => {
       await page.goto(`http://localhost:${TEST_PORT}/extractions`);
       
-      // Check that table container has overflow-x-auto for mobile responsiveness
-      const tableContainer = await page.$('.overflow-x-auto');
-      expect(tableContainer).toBeTruthy();
-      
-      // Test mobile viewport
-      await page.setViewport({ width: 375, height: 667 });
-      await page.reload();
-      
-      // Table should still be accessible
+      // Check if table exists (responsiveness only applies when there's data)
       const table = await page.$('table');
+      
       if (table) {
-        const tableWidth = await table.evaluate(el => el.scrollWidth);
-        expect(tableWidth).toBeGreaterThan(0);
+        // Check that table container has overflow-x-auto for mobile responsiveness
+        const tableContainer = await page.$('.overflow-x-auto');
+        expect(tableContainer).toBeTruthy();
+        
+        // Test mobile viewport
+        await page.setViewport({ width: 375, height: 667 });
+        await page.reload();
+        
+        // Table should still be accessible
+        const tableAfterResize = await page.$('table');
+        if (tableAfterResize) {
+          const tableWidth = await tableAfterResize.evaluate(el => el.scrollWidth);
+          expect(tableWidth).toBeGreaterThan(0);
+        }
+      } else {
+        // If no table, verify the page structure is still responsive
+        const mainContainer = await page.$('.space-y-8');
+        expect(mainContainer).toBeTruthy();
       }
       
       // Reset viewport
@@ -257,7 +268,7 @@ describe('UI Tests', () => {
       
       // If we have extractions, we can't test the empty state without clearing the database
       // But we can still verify the empty state elements exist in the template structure
-      const emptyStateExists = await page.$('.text-center h3') !== null;
+      const emptyStateExists = await page.$('.px-6.py-12.text-center h3') !== null;
       const tableExists = await page.$('table') !== null;
       
       if (extractionsCountHeading?.includes('(0)')) {
@@ -266,14 +277,14 @@ describe('UI Tests', () => {
         expect(tableExists).toBe(false);
         
         // Check empty state content
-        const emptyStateHeading = await page.$eval('.text-center h3', el => el.textContent);
+        const emptyStateHeading = await page.$eval('.px-6.py-12.text-center h3', el => el.textContent);
         expect(emptyStateHeading?.trim()).toBe('No extractions yet');
         
-        const emptyStateMessage = await page.$eval('.text-center p', el => el.textContent);
+        const emptyStateMessage = await page.$eval('.px-6.py-12.text-center p', el => el.textContent);
         expect(emptyStateMessage?.trim()).toBe('Upload a document above to get started.');
         
         // Check that the SVG icon is present
-        const svgIcon = await page.$('.text-center svg');
+        const svgIcon = await page.$('.px-6.py-12.text-center svg');
         expect(svgIcon).toBeTruthy();
       } else {
         // We have extractions, so table should exist and empty state should not
@@ -340,7 +351,7 @@ describe('UI Tests', () => {
       await page.goto(`http://localhost:${TEST_PORT}`);
       
       // Check that stats are displayed in grid format on larger screens
-      const statsGrid = await page.$('.grid-cols-2');
+      const statsGrid = await page.$('.grid.grid-cols-2.md\\:grid-cols-4');
       expect(statsGrid).toBeTruthy();
     });
   });

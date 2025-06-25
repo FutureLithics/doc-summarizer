@@ -355,8 +355,60 @@ const getExtractionById = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
+/**
+ * @swagger
+ * /extractions/{id}:
+ *   delete:
+ *     tags: [Extractions]
+ *     summary: Delete extraction by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Extraction ID
+ *     responses:
+ *       200:
+ *         description: Extraction deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Extraction deleted successfully
+ *       404:
+ *         description: Extraction not found
+ *       500:
+ *         description: Failed to delete extraction
+ */
+const deleteExtraction = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    
+    // Check if ID is valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    const result = await Extraction.findByIdAndDelete(id);
+    
+    if (result) {
+      res.json({ message: 'Extraction deleted successfully' });
+    } else {
+      res.status(404).json({ message: 'Extraction not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete extraction' });
+  }
+};
+
 router.get('/', getExtractions);
 router.post('/upload', uploadMiddleware, uploadDocument);
 router.get('/:id', getExtractionById);
+router.delete('/:id', deleteExtraction);
 
 export default router; 

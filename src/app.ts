@@ -63,9 +63,9 @@ app.get('/', async (req, res) => {
 
 app.get('/extractions', async (req, res) => {
   try {
-    // Fetch extractions with only the required fields
+    // Fetch extractions with only the required fields (including _id for links)
     const extractions = await Extraction.find()
-      .select('summary createdAt fileName status')
+      .select('_id summary createdAt fileName status')
       .sort({ createdAt: -1 }) // Most recent first
       .lean();
 
@@ -83,6 +83,50 @@ app.get('/extractions', async (req, res) => {
       error: { status: 500 }
     });
   }
+});
+
+app.get('/extraction/:id', async (req, res) => {
+  try {
+    const extraction = await Extraction.findById(req.params.id).lean();
+    
+    if (!extraction) {
+      return res.status(404).render('layout', {
+        title: 'Extraction Not Found',
+        page: 'error',
+        message: `The extraction with ID "${req.params.id}" was not found.`,
+        error: { status: 404 }
+      });
+    }
+
+    res.render('layout', {
+      title: 'Extraction Details',
+      page: 'extraction',
+      extraction
+    });
+  } catch (error) {
+    console.error('Error fetching extraction:', error);
+    res.status(500).render('layout', {
+      title: 'Error',
+      page: 'error',
+      message: 'Failed to load extraction details',
+      error: { status: 500 }
+    });
+  }
+});
+
+app.get('/extractions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const extraction = await Extraction.findById(id);
+    res.render('layout', {
+      title: 'Extraction Details',
+      page: 'extraction',
+      extraction
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch extraction' });
+  }
+
 });
 
 app.use('/api', routes);
