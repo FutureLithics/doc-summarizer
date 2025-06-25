@@ -16,7 +16,13 @@
             <div class="flex flex-col md:flex-row md:items-center md:justify-between">
                 <div>
                     <h1 class="text-3xl font-bold text-gray-800 mb-2">
-                        📄 <%= extraction.fileName || 'Unknown Document' %>
+                        📄 <span id="display-filename"><%= extraction.fileName || 'Unknown Document' %></span>
+                        <input 
+                            type="text" 
+                            id="edit-filename" 
+                            value="<%= extraction.fileName || 'Unknown Document' %>" 
+                            class="hidden text-3xl font-bold text-gray-800 bg-white border border-gray-300 rounded px-2 py-1"
+                        />
                     </h1>
                     <div class="flex items-center space-x-4">
                         <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full 
@@ -43,6 +49,10 @@
                     </div>
                 </div>
                 <div class="mt-4 md:mt-0">
+                    <button id="edit-btn" class="btn-secondary">
+                        <span class="mr-2">✏️</span>
+                        Edit
+                    </button>
                     <a href="/extractions" class="btn-primary">
                         <span class="mr-2">←</span>
                         Back to List
@@ -132,7 +142,11 @@
                     Summary
                 </h3>
                 <div class="prose prose-sm max-w-none">
-                    <p class="text-gray-700 leading-relaxed whitespace-pre-wrap"><%= extraction.summary %></p>
+                    <p id="display-summary" class="text-gray-700 leading-relaxed whitespace-pre-wrap"><%= extraction.summary %></p>
+                    <textarea 
+                        id="edit-summary" 
+                        class="hidden w-full text-gray-700 leading-relaxed border border-gray-300 rounded px-3 py-2 min-h-[100px] resize-vertical"
+                    ><%= extraction.summary %></textarea>
                 </div>
             </div>
         <% } %>
@@ -182,6 +196,16 @@
                 </p>
             </div>
         <% } %>
+
+        <div id="edit-actions" class="hidden mt-8 flex justify-end space-x-4 pt-6 border-t border-gray-200">
+            <button id="cancel-btn" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                Cancel
+            </button>
+            <button id="save-btn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200">
+                <span id="save-text">Save Changes</span>
+                <span id="save-loading" class="hidden">Saving...</span>
+            </button>
+        </div>
     </div>
 </div>
 

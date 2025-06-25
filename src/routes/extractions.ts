@@ -406,8 +406,77 @@ const deleteExtraction = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+/**
+ * @swagger
+ * /extractions/{id}:
+ *   put:
+ *     tags: [Extractions]
+ *     summary: Update extraction by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Extraction ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fileName:
+ *                 type: string
+ *               summary:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Extraction updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Extraction updated successfully
+ *       404:
+ *         description: Extraction not found
+ *       500:
+ *         description: Failed to update extraction
+ */
+const updateExtraction = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { fileName, summary } = req.body;
+    
+    // Check if ID is valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    const updateData: any = {};
+    if (fileName !== undefined) updateData.fileName = fileName;
+    if (summary !== undefined) updateData.summary = summary;
+    updateData.updatedAt = new Date();
+
+    const result = await Extraction.findByIdAndUpdate(id, updateData, { new: true });
+    
+    if (result) {
+      res.json({ message: 'Extraction updated successfully', extraction: result });
+    } else {
+      res.status(404).json({ message: 'Extraction not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update extraction' });
+  }
+};
+
 router.get('/', getExtractions);
 router.post('/upload', uploadMiddleware, uploadDocument);
+router.put('/:id', updateExtraction);
 router.get('/:id', getExtractionById);
 router.delete('/:id', deleteExtraction);
 
