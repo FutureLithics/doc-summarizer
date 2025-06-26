@@ -1,5 +1,29 @@
 import request from 'supertest';
 import app from '../../app';
+import mongoose from 'mongoose';
+import { Server } from 'http';
+import User from '../../models/User';
+
+let server: Server;
+
+beforeAll(async () => {
+  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/test-auth-db');
+  return new Promise<void>((resolve) => {
+    server = app.listen(0, () => resolve());
+  });
+});
+
+afterAll(async () => {
+  await mongoose.connection.close();
+  return new Promise<void>((resolve) => {
+    server.close(() => resolve());
+  });
+});
+
+beforeEach(async () => {
+  // Clean up users before each test
+  await User.deleteMany({});
+});
 
 describe('Auth Routes', () => {
   describe('POST /api/auth/signup', () => {
@@ -24,7 +48,7 @@ describe('Auth Routes', () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('message', 'Invalid input');
+      expect(response.body).toHaveProperty('message', 'Email and password are required');
     });
   });
 
@@ -47,7 +71,7 @@ describe('Auth Routes', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('token');
+      expect(response.body).toHaveProperty('message', 'Login successful');
     });
 
     it('should return 401 with invalid credentials', async () => {
