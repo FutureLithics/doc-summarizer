@@ -56,4 +56,72 @@ router.get('/api/users', requireAuth as any, requireAdmin as any, async (req: Re
     }
 });
 
+// Create new user (admin only)
+router.post('/api/users', requireAuth as any, requireAdmin as any, async (req: Request, res: Response) => {
+  try {
+      const { email, role, password } = req.body;
+
+      // Validate required fields
+      if (!email || !role || !password) {
+          return res.status(400).json({ 
+              error: 'Email, role, and password are required' 
+          });
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+          return res.status(400).json({ 
+              error: 'Invalid email format' 
+          });
+      }
+
+      // Validate role
+      if (!['user', 'admin'].includes(role)) {
+          return res.status(400).json({ 
+              error: 'Role must be either "user" or "admin"' 
+          });
+      }
+
+      // Validate password length
+      if (password.length < 6) {
+          return res.status(400).json({ 
+              error: 'Password must be at least 6 characters long' 
+          });
+      }
+
+      const User = (await import('../models/User')).default;
+
+      // Check if user already exists
+      const existingUser = await User.findOne({ email: email.toLowerCase() });
+      if (existingUser) {
+          return res.status(409).json({ 
+              error: 'User with this email already exists' 
+          });
+      }
+
+      // Create new user
+      const newUser = new User({
+          email: email.toLowerCase(),
+          password,
+          role
+      });
+
+      await newUser.save();
+
+      // Return user without password
+      const userResponse = {
+          _id: newUser._id,
+          email: newUser.email,
+          role: newUser.role,
+          createdAt: newUser.createdAt
+      };
+
+      res.status(201).json(userResponse);
+  } catch (error) {
+      console.error('Error creating user:', error);
+      res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
 export default router; 

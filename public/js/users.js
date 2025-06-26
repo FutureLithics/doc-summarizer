@@ -33,6 +33,165 @@ function bindEventListeners() {
             loadUsers();
         });
     }
+
+    // Add user button
+    const addUserBtn = document.getElementById('add-user-btn');
+    if (addUserBtn) {
+        addUserBtn.addEventListener('click', () => {
+            showAddUserModal();
+        });
+    }
+
+    // Modal close buttons
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const cancelAddBtn = document.getElementById('cancel-add-btn');
+    
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', () => {
+            hideAddUserModal();
+        });
+    }
+    
+    if (cancelAddBtn) {
+        cancelAddBtn.addEventListener('click', () => {
+            hideAddUserModal();
+        });
+    }
+
+    // Add user form
+    const addUserForm = document.getElementById('add-user-form');
+    if (addUserForm) {
+        addUserForm.addEventListener('submit', handleAddUser);
+    }
+
+    // Close modal when clicking outside
+    const modal = document.getElementById('add-user-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                hideAddUserModal();
+            }
+        });
+    }
+}
+
+/**
+ * Show the add user modal
+ */
+function showAddUserModal() {
+    const modal = document.getElementById('add-user-modal');
+    const form = document.getElementById('add-user-form');
+    const errorDiv = document.getElementById('add-user-error');
+    
+    // Reset form and hide error
+    form.reset();
+    errorDiv.classList.add('hidden');
+    errorDiv.textContent = '';
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Focus on email input
+    const emailInput = document.getElementById('user-email');
+    if (emailInput) {
+        setTimeout(() => emailInput.focus(), 100);
+    }
+}
+
+/**
+ * Hide the add user modal
+ */
+function hideAddUserModal() {
+    const modal = document.getElementById('add-user-modal');
+    modal.classList.add('hidden');
+}
+
+/**
+ * Handle add user form submission
+ * @param {Event} event - Form submit event
+ */
+async function handleAddUser(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    const userData = {
+        email: formData.get('email'),
+        role: formData.get('role'),
+        password: formData.get('password')
+    };
+    
+    // Show loading state
+    setAddUserLoading(true);
+    hideAddUserError();
+    
+    try {
+        const response = await fetch('/api/users', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(userData)
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        // Success - hide modal and refresh users list
+        hideAddUserModal();
+        loadUsers();
+        
+        // Show success message (you could add a toast notification here)
+        console.log('User created successfully:', result);
+        
+    } catch (error) {
+        console.error('Failed to create user:', error);
+        showAddUserError(error.message);
+    } finally {
+        setAddUserLoading(false);
+    }
+}
+
+/**
+ * Set loading state for add user form
+ * @param {boolean} loading - Whether form is in loading state
+ */
+function setAddUserLoading(loading) {
+    const submitBtn = document.getElementById('submit-add-btn');
+    const submitText = document.getElementById('submit-btn-text');
+    const submitLoading = document.getElementById('submit-btn-loading');
+    
+    if (loading) {
+        submitBtn.disabled = true;
+        submitText.classList.add('hidden');
+        submitLoading.classList.remove('hidden');
+    } else {
+        submitBtn.disabled = false;
+        submitText.classList.remove('hidden');
+        submitLoading.classList.add('hidden');
+    }
+}
+
+/**
+ * Show error message in add user form
+ * @param {string} message - Error message to display
+ */
+function showAddUserError(message) {
+    const errorDiv = document.getElementById('add-user-error');
+    errorDiv.textContent = message;
+    errorDiv.classList.remove('hidden');
+}
+
+/**
+ * Hide error message in add user form
+ */
+function hideAddUserError() {
+    const errorDiv = document.getElementById('add-user-error');
+    errorDiv.classList.add('hidden');
+    errorDiv.textContent = '';
 }
 
 /**

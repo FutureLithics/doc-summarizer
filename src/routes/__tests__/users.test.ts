@@ -275,4 +275,327 @@ describe('Users Routes', () => {
       expect(new Date(user.createdAt).toISOString()).toBe(user.createdAt);
     });
   });
+
+  describe('POST /api/users (Create User)', () => {
+    it('should create a new user with valid data', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      const newUserData = {
+        email: 'newuser@test.com',
+        role: 'user',
+        password: 'password123'
+      };
+
+      const response = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send(newUserData);
+
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('_id');
+      expect(response.body.email).toBe('newuser@test.com');
+      expect(response.body.role).toBe('user');
+      expect(response.body).toHaveProperty('createdAt');
+      expect(response.body).not.toHaveProperty('password');
+
+      // Verify user was actually created in database
+      const createdUser = await User.findById(response.body._id);
+      expect(createdUser).toBeTruthy();
+      expect(createdUser!.email).toBe('newuser@test.com');
+    });
+
+    it('should create a new admin user', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      const newAdminData = {
+        email: 'newadmin@test.com',
+        role: 'admin',
+        password: 'adminpass123'
+      };
+
+      const response = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send(newAdminData);
+
+      expect(response.status).toBe(201);
+      expect(response.body.email).toBe('newadmin@test.com');
+      expect(response.body.role).toBe('admin');
+    });
+
+    it('should normalize email to lowercase', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      const newUserData = {
+        email: 'NewUser@TEST.COM',
+        role: 'user',
+        password: 'password123'
+      };
+
+      const response = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send(newUserData);
+
+      expect(response.status).toBe(201);
+      expect(response.body.email).toBe('newuser@test.com');
+    });
+
+    it('should return 400 for missing required fields', async () => {
+      const adminCookie = await createAdminAndLogin();
+
+      // Missing email
+      let response = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send({ role: 'user', password: 'password123' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('Email, role, and password are required');
+
+      // Missing role
+      response = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send({ email: 'test@test.com', password: 'password123' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('Email, role, and password are required');
+
+      // Missing password
+      response = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send({ email: 'test@test.com', role: 'user' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('Email, role, and password are required');
+    });
+
+    it('should return 400 for invalid email format', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      const invalidEmails = [
+        'invalid-email',
+        'invalid@',
+        '@invalid.com',
+        'invalid.email',
+        'invalid@.com',
+        'invalid@com.',
+        ''
+      ];
+
+      for (const email of invalidEmails) {
+        const response = await request(app)
+          .post('/api/users')
+          .set('Cookie', adminCookie)
+          .send({ email, role: 'user', password: 'password123' });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Invalid email format');
+      }
+    });
+
+    it('should return 400 for invalid role', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      const invalidRoles = ['superuser', 'moderator', 'guest', '', 'ADMIN', 'USER'];
+
+      for (const role of invalidRoles) {
+        const response = await request(app)
+          .post('/api/users')
+          .set('Cookie', adminCookie)
+          .send({ email: 'test@test.com', role, password: 'password123' });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Role must be either "user" or "admin"');
+      }
+    });
+
+    it('should return 400 for password too short', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      const shortPasswords = ['', '1', '12', '123', '1234', '12345'];
+
+      for (const password of shortPasswords) {
+        const response = await request(app)
+          .post('/api/users')
+          .set('Cookie', adminCookie)
+          .send({ email: 'test@test.com', role: 'user', password });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Password must be at least 6 characters long');
+      }
+    });
+
+    it('should return 409 for duplicate email', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      // Create first user
+      const userData = {
+        email: 'duplicate@test.com',
+        role: 'user',
+        password: 'password123'
+      };
+
+      const firstResponse = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send(userData);
+
+      expect(firstResponse.status).toBe(201);
+
+      // Try to create user with same email
+      const secondResponse = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send(userData);
+
+      expect(secondResponse.status).toBe(409);
+      expect(secondResponse.body.error).toBe('User with this email already exists');
+    });
+
+    it('should return 409 for duplicate email with different case', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      // Create first user
+      await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send({ email: 'test@example.com', role: 'user', password: 'password123' });
+
+      // Try to create user with same email but different case
+      const response = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send({ email: 'TEST@EXAMPLE.COM', role: 'user', password: 'password123' });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error).toBe('User with this email already exists');
+    });
+
+    it('should return 403 for regular users', async () => {
+      const userCookie = await createRegularUserAndLogin();
+      
+      const newUserData = {
+        email: 'newuser@test.com',
+        role: 'user',
+        password: 'password123'
+      };
+
+      const response = await request(app)
+        .post('/api/users')
+        .set('Cookie', userCookie)
+        .send(newUserData);
+
+      expect(response.status).toBe(403);
+      expect(response.body).toHaveProperty('error', 'Admin access required');
+    });
+
+    it('should return 401 for unauthenticated requests', async () => {
+      const newUserData = {
+        email: 'newuser@test.com',
+        role: 'user',
+        password: 'password123'
+      };
+
+      const response = await request(app)
+        .post('/api/users')
+        .send(newUserData);
+
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty('message', 'Authentication required');
+    });
+
+    it('should handle database errors gracefully', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      const newUserData = {
+        email: 'newuser@test.com',
+        role: 'user',
+        password: 'password123'
+      };
+
+      // Close database connection to simulate error
+      await mongoose.connection.close();
+
+      const response = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send(newUserData);
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('error', 'Failed to create user');
+
+      // Reconnect for cleanup
+      await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/test-users-db');
+    });
+
+    it('should hash password before storing', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      const newUserData = {
+        email: 'passwordtest@test.com',
+        role: 'user',
+        password: 'plainpassword123'
+      };
+
+      const response = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send(newUserData);
+
+      expect(response.status).toBe(201);
+
+      // Check that password is hashed in database
+      const createdUser = await User.findById(response.body._id);
+      expect(createdUser!.password).not.toBe('plainpassword123');
+      expect(createdUser!.password.length).toBeGreaterThan(20); // Hashed passwords are longer
+    });
+
+    it('should accept valid email formats', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      const validEmails = [
+        'user@example.com',
+        'user.name@example.com',
+        'user+tag@example.com',
+        'user123@example123.com',
+        'a@b.co'
+      ];
+
+      for (let i = 0; i < validEmails.length; i++) {
+        const response = await request(app)
+          .post('/api/users')
+          .set('Cookie', adminCookie)
+          .send({ 
+            email: validEmails[i], 
+            role: 'user', 
+            password: 'password123' 
+          });
+
+        expect(response.status).toBe(201);
+        expect(response.body.email).toBe(validEmails[i].toLowerCase());
+      }
+    });
+
+    it('should create users with proper timestamps', async () => {
+      const adminCookie = await createAdminAndLogin();
+      
+      const beforeCreate = new Date();
+      
+      const response = await request(app)
+        .post('/api/users')
+        .set('Cookie', adminCookie)
+        .send({ email: 'timestamp@test.com', role: 'user', password: 'password123' });
+
+      const afterCreate = new Date();
+
+      expect(response.status).toBe(201);
+      
+      const createdAt = new Date(response.body.createdAt);
+      expect(createdAt.getTime()).toBeGreaterThanOrEqual(beforeCreate.getTime());
+      expect(createdAt.getTime()).toBeLessThanOrEqual(afterCreate.getTime());
+    });
+  });
 }); 
