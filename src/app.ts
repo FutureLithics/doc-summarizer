@@ -10,6 +10,7 @@ import { optionalAuth, requireAuth, AuthenticatedRequest } from './middleware/au
 import routes from './routes';
 import authRoutes from './routes/auth';
 import extractionRoutes from './routes/extractions';
+import usersRoutes from './routes/users';
 import Extraction from './models/Extraction';
 
 const app: Express = express();
@@ -180,101 +181,13 @@ app.get('/users', requireAuth as any, async (req: any, res) => {
   });
 });
 
-/**
- * @swagger
- * /api/users:
- *   get:
- *     tags: [Users]
- *     summary: Get all users (Admin only)
- *     description: Retrieve a list of all users in the system. Only accessible by administrators.
- *     security:
- *       - sessionAuth: []
- *       - bearerAuth: []
- *     parameters:
- *       - in: header
- *         name: Authorization
- *         schema:
- *           type: string
- *           example: "Bearer your-jwt-token-here"
- *         required: false
- *         description: Bearer token for authentication (alternative to session)
- *     responses:
- *       200:
- *         description: List of users retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   _id:
- *                     type: string
- *                     description: User's unique identifier
- *                     example: "507f1f77bcf86cd799439011"
- *                   email:
- *                     type: string
- *                     format: email
- *                     description: User's email address
- *                     example: "admin@docextract.com"
- *                   role:
- *                     type: string
- *                     enum: [user, admin]
- *                     description: User's role in the system
- *                     example: "admin"
- *                   createdAt:
- *                     type: string
- *                     format: date-time
- *                     description: Date when the user was created
- *                     example: "2024-01-15T10:30:00.000Z"
- *       401:
- *         description: Authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               error: "Authentication required"
- *       403:
- *         description: Admin access required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               error: "Admin access required"
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               error: "Failed to fetch users"
- */
-// Users API route (admin only)
-app.get('/api/users', requireAuth as any, async (req: any, res) => {
-  // Check if user is admin
-  const user = (req as any).user;
-  if (!user || user.role !== 'admin') {
-    res.status(403).json({ error: 'Admin access required' });
-    return;
-  }
 
-  try {
-    const User = (await import('./models/User')).default;
-    const users = await User.find({}, 'email role createdAt').sort({ createdAt: -1 });
-    res.json(users);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
 
 app.use('/', authRoutes); // Mount auth routes at root for web pages
 app.use('/api', routes);
 app.use('/api/auth', authRoutes); // Keep API routes
 app.use('/api/extractions', extractionRoutes);
+app.use('/api/users', usersRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // 404 handler for any unmatched routes

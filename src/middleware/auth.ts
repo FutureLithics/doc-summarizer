@@ -21,7 +21,7 @@ export const requireAuth = (req: AuthenticatedRequest, res: Response, next: Next
   const session = req.session as any;
   if (!session.user) {
     // For API routes, return JSON error
-    if (req.path.startsWith('/api/')) {
+    if (req.originalUrl?.includes('/api/')) {
       return res.status(401).json({ message: 'Authentication required' });
     }
     
@@ -51,16 +51,12 @@ export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: Nex
 };
 
 export const requireAdmin = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  // Skip auth in test environment for API routes (use admin user)
-  if (process.env.NODE_ENV === 'test' && req.path.startsWith('/api/') && !req.path.includes('/users')) {
-    req.user = { id: 'test-admin', email: 'admin@example.com', role: 'admin' };
-    return next();
-  }
+  // Note: requireAdmin doesn't skip auth in test environment because user management tests need real authentication
 
   const session = req.session as any;
   if (!session.user) {
     // For API routes, return JSON error
-    if (req.path.startsWith('/api/')) {
+    if (req.originalUrl?.includes('/api/')) {
       return res.status(401).json({ message: 'Authentication required' });
     }
     
@@ -71,8 +67,8 @@ export const requireAdmin = (req: AuthenticatedRequest, res: Response, next: Nex
   
   if (session.user.role !== 'admin') {
     // For API routes, return JSON error
-    if (req.path.startsWith('/api/')) {
-      return res.status(403).json({ message: 'Admin access required' });
+    if (req.originalUrl?.includes('/api/')) {
+      return res.status(403).json({ error: 'Admin access required' });
     }
     
     // For web routes, show error or redirect
