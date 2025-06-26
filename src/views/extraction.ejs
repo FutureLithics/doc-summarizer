@@ -49,9 +49,9 @@
                     </div>
                 </div>
                 <div class="mt-4 md:mt-0">
-                    <button id="edit-btn" class="btn-secondary">
+                    <button id="edit-btn" class="btn-secondary inline-flex items-center">
                         <span class="mr-2">✏️</span>
-                        Edit
+                        <span id="edit-btn-text">Edit</span>
                     </button>
                     <a href="/extractions" class="btn-primary">
                         <span class="mr-2">←</span>
@@ -72,9 +72,15 @@
                 <dl class="space-y-3">
                     <div>
                         <dt class="text-sm font-medium text-gray-600">File Name</dt>
-                        <dd class="text-sm text-gray-900 font-mono bg-white px-2 py-1 rounded border">
+                        <dd id="display-filename-info" class="text-sm text-gray-900 font-mono bg-white px-2 py-1 rounded border">
                             <%= extraction.fileName || 'Unknown' %>
                         </dd>
+                        <input 
+                            type="text" 
+                            id="edit-filename-info" 
+                            value="<%= extraction.fileName || 'Unknown' %>" 
+                            class="hidden text-sm text-gray-900 font-mono bg-white border border-gray-300 rounded px-2 py-1 w-full"
+                        />
                     </div>
                     <% if (extraction.fileSize) { %>
                         <div>

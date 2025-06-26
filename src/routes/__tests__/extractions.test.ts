@@ -468,4 +468,88 @@ describe('Extraction Routes', () => {
       expect(response.body).toHaveProperty('message', 'Extraction not found');
     });
   });
+
+  describe('PUT /api/extractions/:id', () => {
+    it('should update an existing extraction', async () => {
+      // First upload a file
+      const uploadResponse = await request(app)
+        .post('/api/extractions/upload')
+        .attach('file', path.join(__dirname, '../__fixtures__/test.txt'));
+
+      const { extractionId } = uploadResponse.body;
+
+      // Update it
+      const updateResponse = await request(app)
+        .put(`/api/extractions/${extractionId}`)
+        .send({
+          fileName: 'updated-test.txt',
+          summary: 'Updated summary content'
+        });
+
+      expect(updateResponse.status).toBe(200);
+      expect(updateResponse.body).toHaveProperty('message', 'Extraction updated successfully');
+      expect(updateResponse.body.extraction.fileName).toBe('updated-test.txt');
+      expect(updateResponse.body.extraction.summary).toBe('Updated summary content');
+
+      // Verify it's actually updated
+      const getResponse = await request(app).get(`/api/extractions/${extractionId}`);
+      expect(getResponse.body.fileName).toBe('updated-test.txt');
+      expect(getResponse.body.summary).toBe('Updated summary content');
+    });
+
+    it('should update only fileName when summary is not provided', async () => {
+      // First upload a file
+      const uploadResponse = await request(app)
+        .post('/api/extractions/upload')
+        .attach('file', path.join(__dirname, '../__fixtures__/test.txt'));
+
+      const { extractionId } = uploadResponse.body;
+
+      // Update only fileName
+      const updateResponse = await request(app)
+        .put(`/api/extractions/${extractionId}`)
+        .send({
+          fileName: 'filename-only-update.txt'
+        });
+
+      expect(updateResponse.status).toBe(200);
+      expect(updateResponse.body.extraction.fileName).toBe('filename-only-update.txt');
+    });
+
+    it('should return 400 for empty fileName', async () => {
+      const response = await request(app)
+        .put('/api/extractions/507f1f77bcf86cd799439011')
+        .send({
+          fileName: '',
+          summary: 'Some summary'
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('message');
+    });
+
+    it('should return 404 for non-existent extraction', async () => {
+      const response = await request(app)
+        .put('/api/extractions/507f1f77bcf86cd799439011')
+        .send({
+          fileName: 'test.txt',
+          summary: 'Test summary'
+        });
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('message', 'Extraction not found');
+    });
+
+    it('should return 404 for invalid extraction ID', async () => {
+      const response = await request(app)
+        .put('/api/extractions/invalid-id')
+        .send({
+          fileName: 'test.txt',
+          summary: 'Test summary'
+        });
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('message', 'Extraction not found');
+    });
+  });
 }); 

@@ -1,4 +1,7 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
+import authRoutes from './auth';
+import extractionRoutes from './extractions';
+import { requireAuth, requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
@@ -21,6 +24,36 @@ const router = Router();
  */
 router.get('/health', (req, res) => {
   res.json({ status: 'healthy' });
+});
+
+// Home route (no auth required)
+router.get('/', (req, res) => {
+    res.render('home', { title: 'DocExtract - Extract text from documents' });
+});
+
+// Authentication routes (public)
+router.use('/auth', authRoutes);
+
+// Protected routes
+router.use('/extractions', requireAuth as any, extractionRoutes);
+router.use('/extraction', requireAuth as any, extractionRoutes);
+
+// Users management (admin only)
+router.get('/users', requireAuth as any, requireAdmin as any, (req: Request, res: Response) => {
+    res.render('users', { title: 'User Management - DocExtract' });
+});
+
+// API Routes
+// Users API (admin only)
+router.get('/api/users', requireAuth as any, requireAdmin as any, async (req: Request, res: Response) => {
+    try {
+        const User = (await import('../models/User')).default;
+        const users = await User.find({}, 'email role createdAt').sort({ createdAt: -1 });
+        res.json(users);
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
 });
 
 export default router; 

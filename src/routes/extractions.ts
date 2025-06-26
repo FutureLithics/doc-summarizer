@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 // Add pdf-parse import for proper PDF text extraction
 import pdfParse from 'pdf-parse';
 import { extractPdfTextForTests } from './__tests__/testHelpers';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -457,12 +458,32 @@ const updateExtraction = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const updateData: any = {};
-    if (fileName !== undefined) updateData.fileName = fileName;
-    if (summary !== undefined) updateData.summary = summary;
-    updateData.updatedAt = new Date();
+    // Validate fileName if provided
+    if (fileName !== undefined && (!fileName || fileName.trim() === '')) {
+      res.status(400).json({ message: 'File name cannot be empty' });
+      return;
+    }
 
-    const result = await Extraction.findByIdAndUpdate(id, updateData, { new: true });
+    if (fileName && fileName.trim().length > 255) {
+      res.status(400).json({ message: 'File name is too long (max 255 characters)' });
+      return;
+    }
+
+    const updateData: any = { updatedAt: new Date() };
+    
+    if (fileName !== undefined) {
+      updateData.fileName = fileName.trim();
+    }
+    
+    if (summary !== undefined) {
+      updateData.summary = summary.trim();
+    }
+
+    const result = await Extraction.findByIdAndUpdate(
+      id, 
+      updateData, 
+      { new: true, runValidators: true }
+    ).lean();
     
     if (result) {
       res.json({ message: 'Extraction updated successfully', extraction: result });
@@ -470,14 +491,15 @@ const updateExtraction = async (req: Request, res: Response): Promise<void> => {
       res.status(404).json({ message: 'Extraction not found' });
     }
   } catch (error) {
+    console.error('Error updating extraction:', error);
     res.status(500).json({ message: 'Failed to update extraction' });
   }
 };
 
-router.get('/', getExtractions);
-router.post('/upload', uploadMiddleware, uploadDocument);
-router.put('/:id', updateExtraction);
-router.get('/:id', getExtractionById);
-router.delete('/:id', deleteExtraction);
+router.get('/', requireAuth as any, getExtractions);
+router.post('/upload', requireAuth as any, uploadMiddleware, uploadDocument);
+router.put('/:id', requireAuth as any, updateExtraction);
+router.get('/:id', requireAuth as any, getExtractionById);
+router.delete('/:id', requireAuth as any, deleteExtraction);
 
 export default router; 

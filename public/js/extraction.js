@@ -49,99 +49,223 @@ function copyToClipboard(button) {
       }
     });
   }
-} 
+}
 
-function initializeEditMode() {
-  const editBtn = document.getElementById('edit-btn');
-  const cancelBtn = document.getElementById('cancel-btn');
-  const saveBtn = document.getElementById('save-btn');
-  
-  if (!editBtn || !cancelBtn || !saveBtn) return;
-  
-  const editActions = document.getElementById('edit-actions');
-  const displayFilename = document.getElementById('display-filename');
-  const editFilename = document.getElementById('edit-filename');
-  const displaySummary = document.getElementById('display-summary');
-  const editSummary = document.getElementById('edit-summary');
-  const saveText = document.getElementById('save-text');
-  const saveLoading = document.getElementById('save-loading');
-  
-  let isEditMode = false;
-  let originalValues = {};
-
-  function enterEditMode() {
-    isEditMode = true;
+/**
+ * Edit Mode Management Class
+ */
+class ExtractionEditManager {
+  constructor() {
+    this.isEditMode = false;
+    this.originalValues = {};
+    this.elements = {};
+    this.extractionId = this.getExtractionId();
     
-    // Store original values
-    originalValues.fileName = displayFilename.textContent;
-    originalValues.summary = displaySummary ? displaySummary.textContent : '';
-    
-    // Show edit elements, hide display elements
-    displayFilename.classList.add('hidden');
-    editFilename.classList.remove('hidden');
-    editFilename.focus();
-    
-    if (displaySummary && editSummary) {
-      displaySummary.classList.add('hidden');
-      editSummary.classList.remove('hidden');
-    }
-    
-    // Update button states
-    editBtn.textContent = 'Editing...';
-    editBtn.disabled = true;
-    editBtn.classList.add('opacity-50', 'cursor-not-allowed');
-    editActions.classList.remove('hidden');
+    this.initializeElements();
+    this.bindEvents();
   }
 
-  function exitEditMode() {
-    isEditMode = false;
-    
-    // Show display elements, hide edit elements
-    displayFilename.classList.remove('hidden');
-    editFilename.classList.add('hidden');
-    
-    if (displaySummary && editSummary) {
-      displaySummary.classList.remove('hidden');
-      editSummary.classList.add('hidden');
+  initializeElements() {
+    // Get all required DOM elements
+    this.elements = {
+      editBtn: document.getElementById('edit-btn'),
+      editBtnText: document.getElementById('edit-btn-text'),
+      cancelBtn: document.getElementById('cancel-btn'),
+      saveBtn: document.getElementById('save-btn'),
+      editActions: document.getElementById('edit-actions'),
+      
+      // Display elements
+      displayFilename: document.getElementById('display-filename'),
+      displayFilenameInfo: document.getElementById('display-filename-info'),
+      displaySummary: document.getElementById('display-summary'),
+      
+      // Edit elements
+      editFilename: document.getElementById('edit-filename'),
+      editFilenameInfo: document.getElementById('edit-filename-info'),
+      editSummary: document.getElementById('edit-summary'),
+      
+      // Loading states
+      saveText: document.getElementById('save-text'),
+      saveLoading: document.getElementById('save-loading')
+    };
+
+    // Check if required elements exist
+    if (!this.elements.editBtn || 
+        (!this.elements.displayFilename && !this.elements.displayFilenameInfo) ||
+        (!this.elements.editFilename && !this.elements.editFilenameInfo)) {
+      console.warn('Edit mode: Required elements not found');
+      return false;
     }
-    
-    // Update button states
-    editBtn.innerHTML = '<span class="mr-2">✏️</span>Edit';
-    editBtn.disabled = false;
-    editBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-    editActions.classList.add('hidden');
+
+    return true;
   }
 
-  function cancelEdit() {
+  bindEvents() {
+    if (!this.elements.editBtn) return;
+
+    // Button events
+    this.elements.editBtn.addEventListener('click', () => this.enterEditMode());
+    this.elements.cancelBtn?.addEventListener('click', () => this.cancelEdit());
+    this.elements.saveBtn?.addEventListener('click', () => this.saveChanges());
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+
+    // Handle Enter key in filename fields
+    this.elements.editFilename?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (this.elements.editSummary) {
+          this.elements.editSummary.focus();
+        } else {
+          this.saveChanges();
+        }
+      }
+    });
+
+    this.elements.editFilenameInfo?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (this.elements.editSummary) {
+          this.elements.editSummary.focus();
+        } else {
+          this.saveChanges();
+        }
+      }
+    });
+
+    // Sync filename inputs when either changes
+    this.elements.editFilename?.addEventListener('input', (e) => {
+      if (this.elements.editFilenameInfo) {
+        this.elements.editFilenameInfo.value = e.target.value;
+      }
+    });
+
+    this.elements.editFilenameInfo?.addEventListener('input', (e) => {
+      if (this.elements.editFilename) {
+        this.elements.editFilename.value = e.target.value;
+      }
+    });
+
+    // Handle Ctrl+Enter in summary field to save
+    this.elements.editSummary?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        this.saveChanges();
+      }
+    });
+  }
+
+  getExtractionId() {
+    const pathParts = window.location.pathname.split('/');
+    return pathParts[pathParts.length - 1];
+  }
+
+  storeOriginalValues() {
+    this.originalValues = {
+      fileName: this.elements.displayFilename.textContent.trim(),
+      summary: this.elements.displaySummary ? this.elements.displaySummary.textContent.trim() : ''
+    };
+  }
+
+  enterEditMode() {
+    if (this.isEditMode) return;
+
+    this.isEditMode = true;
+    this.storeOriginalValues();
+
+    // Update display elements
+    this.toggleDisplayElements(false);
+    this.toggleEditElements(true);
+
+    // Update button states
+    this.updateEditButtonState(true);
+    this.showEditActions(true);
+
+    // Sync filename values between fields
+    if (this.elements.editFilename && this.elements.editFilenameInfo) {
+      this.elements.editFilenameInfo.value = this.elements.editFilename.value;
+    }
+
+    // Focus on first available filename input
+    const firstFilenameInput = this.elements.editFilename || this.elements.editFilenameInfo;
+    if (firstFilenameInput) {
+      firstFilenameInput.focus();
+      firstFilenameInput.select();
+    }
+
+    // Show user feedback
+    this.showNotification('Edit mode enabled. Press Escape to cancel.', 'info');
+  }
+
+  exitEditMode() {
+    if (!this.isEditMode) return;
+
+    this.isEditMode = false;
+
+    // Update display elements
+    this.toggleDisplayElements(true);
+    this.toggleEditElements(false);
+
+    // Update button states
+    this.updateEditButtonState(false);
+    this.showEditActions(false);
+  }
+
+  cancelEdit() {
     // Restore original values
-    editFilename.value = originalValues.fileName;
-    displayFilename.textContent = originalValues.fileName;
-    
-    if (editSummary && displaySummary) {
-      editSummary.value = originalValues.summary;
-      displaySummary.textContent = originalValues.summary;
+    if (this.elements.editFilename) {
+      this.elements.editFilename.value = this.originalValues.fileName;
     }
-    
-    exitEditMode();
+    if (this.elements.editFilenameInfo) {
+      this.elements.editFilenameInfo.value = this.originalValues.fileName;
+    }
+    if (this.elements.displayFilename) {
+      this.elements.displayFilename.textContent = this.originalValues.fileName;
+    }
+    if (this.elements.displayFilenameInfo) {
+      this.elements.displayFilenameInfo.textContent = this.originalValues.fileName;
+    }
+
+    if (this.elements.editSummary && this.elements.displaySummary) {
+      this.elements.editSummary.value = this.originalValues.summary;
+      this.elements.displaySummary.textContent = this.originalValues.summary;
+    }
+
+    this.exitEditMode();
+    this.showNotification('Changes cancelled', 'info');
   }
 
-  async function saveChanges() {
-    const newFileName = editFilename.value.trim();
-    const newSummary = editSummary ? editSummary.value.trim() : '';
-    
+  async saveChanges() {
+    const newFileName = (this.elements.editFilename?.value || this.elements.editFilenameInfo?.value || '').trim();
+    const newSummary = this.elements.editSummary ? this.elements.editSummary.value.trim() : '';
+
+    // Validation
     if (!newFileName) {
-      alert('File name cannot be empty');
+      this.showNotification('File name cannot be empty', 'error');
+      (this.elements.editFilename || this.elements.editFilenameInfo)?.focus();
       return;
     }
-    
+
+    if (newFileName.length > 255) {
+      this.showNotification('File name is too long (max 255 characters)', 'error');
+      (this.elements.editFilename || this.elements.editFilenameInfo)?.focus();
+      return;
+    }
+
+    // Check if anything actually changed
+    if (newFileName === this.originalValues.fileName && 
+        newSummary === this.originalValues.summary) {
+      this.exitEditMode();
+      this.showNotification('No changes to save', 'info');
+      return;
+    }
+
     // Show loading state
-    saveText.classList.add('hidden');
-    saveLoading.classList.remove('hidden');
-    saveBtn.disabled = true;
-    
+    this.setSaveButtonLoading(true);
+
     try {
-      const extractionId = window.location.pathname.split('/').pop();
-      const response = await fetch(`/api/extractions/${extractionId}`, {
+      const response = await fetch(`/api/extractions/${this.extractionId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -151,66 +275,151 @@ function initializeEditMode() {
           summary: newSummary
         })
       });
-      
-      if (response.ok) {
-        // Update display values
-        displayFilename.textContent = newFileName;
-        if (displaySummary) {
-          displaySummary.textContent = newSummary;
-        }
-        
-        exitEditMode();
-        showSuccessMessage('Changes saved successfully!');
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to save changes');
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Server error: ${response.status}`);
       }
+
+      const result = await response.json();
+
+      // Update display values
+      if (this.elements.displayFilename) {
+        this.elements.displayFilename.textContent = newFileName;
+      }
+      if (this.elements.displayFilenameInfo) {
+        this.elements.displayFilenameInfo.textContent = newFileName;
+      }
+      if (this.elements.displaySummary) {
+        this.elements.displaySummary.textContent = newSummary;
+      }
+
+      // Update page title if it includes the filename
+      this.updatePageTitle(newFileName);
+
+      this.exitEditMode();
+      this.showNotification('Changes saved successfully!', 'success');
+
     } catch (error) {
-      alert('Failed to save changes: ' + error.message);
+      console.error('Failed to save changes:', error);
+      this.showNotification(`Failed to save changes: ${error.message}`, 'error');
     } finally {
-      // Reset loading state
-      saveText.classList.remove('hidden');
-      saveLoading.classList.add('hidden');
-      saveBtn.disabled = false;
+      this.setSaveButtonLoading(false);
     }
   }
 
-  function showSuccessMessage(message) {
-    const successMsg = document.createElement('div');
-    successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-    successMsg.textContent = message;
-    document.body.appendChild(successMsg);
+  // Helper methods
+  toggleDisplayElements(show) {
+    if (this.elements.displayFilename) {
+      this.elements.displayFilename.classList.toggle('hidden', !show);
+    }
+    if (this.elements.displayFilenameInfo) {
+      this.elements.displayFilenameInfo.classList.toggle('hidden', !show);
+    }
+    if (this.elements.displaySummary) {
+      this.elements.displaySummary.classList.toggle('hidden', !show);
+    }
+  }
+
+  toggleEditElements(show) {
+    if (this.elements.editFilename) {
+      this.elements.editFilename.classList.toggle('hidden', !show);
+    }
+    if (this.elements.editFilenameInfo) {
+      this.elements.editFilenameInfo.classList.toggle('hidden', !show);
+    }
+    if (this.elements.editSummary) {
+      this.elements.editSummary.classList.toggle('hidden', !show);
+    }
+  }
+
+  updateEditButtonState(isEditing) {
+    if (isEditing) {
+      this.elements.editBtnText.textContent = 'Editing...';
+      this.elements.editBtn.disabled = true;
+      this.elements.editBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+      this.elements.editBtnText.textContent = 'Edit';
+      this.elements.editBtn.disabled = false;
+      this.elements.editBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
+
+  showEditActions(show) {
+    if (this.elements.editActions) {
+      this.elements.editActions.classList.toggle('hidden', !show);
+    }
+  }
+
+  setSaveButtonLoading(loading) {
+    if (!this.elements.saveText || !this.elements.saveLoading || !this.elements.saveBtn) return;
+
+    this.elements.saveText.classList.toggle('hidden', loading);
+    this.elements.saveLoading.classList.toggle('hidden', !loading);
+    this.elements.saveBtn.disabled = loading;
+  }
+
+  updatePageTitle(newFileName) {
+    const title = document.title;
+    if (title.includes('Extraction Details')) {
+      document.title = `${newFileName} | Document Extraction Service`;
+    }
+  }
+
+  handleKeyboard(e) {
+    if (!this.isEditMode) return;
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      this.cancelEdit();
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      this.saveChanges();
+    }
+  }
+
+  showNotification(message, type = 'info') {
+    // Remove existing notifications
+    const existing = document.querySelectorAll('.edit-notification');
+    existing.forEach(el => el.remove());
+
+    const notification = document.createElement('div');
+    notification.className = `edit-notification fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm`;
     
-    setTimeout(() => {
-      if (document.body.contains(successMsg)) {
-        document.body.removeChild(successMsg);
-      }
-    }, 3000);
-  }
-
-  // Event listeners
-  editBtn.addEventListener('click', enterEditMode);
-  cancelBtn.addEventListener('click', cancelEdit);
-  saveBtn.addEventListener('click', saveChanges);
-  
-  // Handle Escape key to cancel edit
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && isEditMode) {
-      cancelEdit();
+    // Set color based on type
+    switch (type) {
+      case 'success':
+        notification.classList.add('bg-green-500', 'text-white');
+        break;
+      case 'error':
+        notification.classList.add('bg-red-500', 'text-white');
+        break;
+      case 'info':
+      default:
+        notification.classList.add('bg-blue-500', 'text-white');
+        break;
     }
-  });
-  
-  // Handle Enter key in filename field
-  if (editFilename) {
-    editFilename.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (editSummary) {
-          editSummary.focus();
-        } else {
-          saveChanges();
-        }
+
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    // Auto remove after delay
+    const delay = type === 'error' ? 5000 : 3000;
+    setTimeout(() => {
+      if (document.body.contains(notification)) {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+          document.body.removeChild(notification);
+        }, 300);
       }
-    });
+    }, delay);
   }
+}
+
+function initializeEditMode() {
+  // Initialize the edit manager
+  new ExtractionEditManager();
 }

@@ -1,0 +1,129 @@
+<!-- src/views/users.ejs -->
+<div class="space-y-8">
+    <!-- Page Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                👥 User Management
+            </h1>
+            <p class="text-gray-600">
+                Manage system users and their roles
+            </p>
+        </div>
+        <div class="mt-4 md:mt-0">
+            <button id="refresh-users-btn" class="btn-secondary inline-flex items-center">
+                <span class="mr-2">🔄</span>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Users Statistics -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span class="text-blue-600 text-sm font-semibold">👤</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Total Users</p>
+                    <p id="total-users" class="text-2xl font-semibold text-gray-900">-</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span class="text-purple-600 text-sm font-semibold">👑</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Administrators</p>
+                    <p id="admin-users" class="text-2xl font-semibold text-gray-900">-</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <span class="text-green-600 text-sm font-semibold">✅</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Regular Users</p>
+                    <p id="regular-users" class="text-2xl font-semibold text-gray-900">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-800">All Users</h3>
+        </div>
+        
+        <!-- Loading State -->
+        <div id="users-loading" class="px-6 py-8 text-center">
+            <div class="inline-flex items-center">
+                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                <span class="text-gray-600">Loading users...</span>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="users-error" class="hidden px-6 py-8 text-center">
+            <div class="text-red-600 mb-2">⚠️ Failed to load users</div>
+            <button id="retry-load-btn" class="text-blue-600 hover:text-blue-800 text-sm">
+                Try again
+            </button>
+        </div>
+
+        <!-- Users Table Content -->
+        <div id="users-table-container" class="hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                User
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Role
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Created
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-table-body" class="bg-white divide-y divide-gray-200">
+                        <!-- Users will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="users-empty" class="hidden px-6 py-12 text-center">
+            <div class="text-gray-400 mb-4">
+                <svg class="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                </svg>
+            </div>
+            <h3 class="text-sm font-medium text-gray-900 mb-1">No users found</h3>
+            <p class="text-sm text-gray-500">There are no users in the system.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Users Management JavaScript -->
+<script src="/js/users.js"></script> 

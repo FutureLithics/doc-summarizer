@@ -2,9 +2,11 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
+import session from 'express-session';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
 import { errorHandler } from './middleware/errorHandler';
+import { optionalAuth, requireAuth, AuthenticatedRequest } from './middleware/auth';
 import routes from './routes';
 import authRoutes from './routes/auth';
 import extractionRoutes from './routes/extractions';
@@ -23,8 +25,28 @@ app.use(cors());
 app.use(helmet());
 app.use(express.json());
 
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key-here',
+  resave: false,
+  saveUninitialized: false,
+  rolling: true, // Reset expiration on activity
+  cookie: {
+    secure: false, // Set to true in production with HTTPS
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
+    sameSite: 'lax' // Improve cookie security while maintaining functionality
+  }
+}));
+
+// Add user data to all requests for templates
+app.use((req, res, next) => {
+  res.locals.user = (req as any).session?.user || null;
+  next();
+});
+
 // Homepage route with dynamic data
-app.get('/', async (req, res) => {
+app.get('/', optionalAuth, async (req, res) => {
   try {
     // Fetch extraction statistics from database
     const totalExtractions = await Extraction.countDocuments();
@@ -42,7 +64,8 @@ app.get('/', async (req, res) => {
     res.render('layout', {
       title: 'Home',
       page: 'home',
-      stats
+      stats,
+      user: (req as any).user || null
     });
   } catch (error) {
     // Fallback stats if database is unavailable
@@ -56,12 +79,13 @@ app.get('/', async (req, res) => {
     res.render('layout', {
       title: 'Home',
       page: 'home',
-      stats
+      stats,
+      user: (req as any).user || null
     });
   }
 });
 
-app.get('/extractions', async (req, res) => {
+app.get('/extractions', requireAuth as any, async (req: any, res) => {
   try {
     // Fetch extractions with only the required fields (including _id for links)
     const extractions = await Extraction.find()
@@ -72,7 +96,8 @@ app.get('/extractions', async (req, res) => {
     res.render('layout', {
       title: 'Extractions',
       page: 'extractions',
-      extractions
+      extractions,
+      user: (req as any).user || null
     });
   } catch (error) {
     console.error('Error fetching extractions:', error);
@@ -80,12 +105,13 @@ app.get('/extractions', async (req, res) => {
       title: 'Error',
       page: 'error',
       message: 'Failed to load extractions',
-      error: { status: 500 }
+      error: { status: 500 },
+      user: (req as any).user || null
     });
   }
 });
 
-app.get('/extraction/:id', async (req, res) => {
+app.get('/extraction/:id', requireAuth as any, async (req: any, res) => {
   try {
     const extraction = await Extraction.findById(req.params.id).lean();
     
@@ -94,14 +120,16 @@ app.get('/extraction/:id', async (req, res) => {
         title: 'Extraction Not Found',
         page: 'error',
         message: `The extraction with ID "${req.params.id}" was not found.`,
-        error: { status: 404 }
+        error: { status: 404 },
+        user: (req as any).user || null
       });
     }
 
     res.render('layout', {
       title: 'Extraction Details',
       page: 'extraction',
-      extraction
+      extraction,
+      user: (req as any).user || null
     });
   } catch (error) {
     console.error('Error fetching extraction:', error);
@@ -109,28 +137,71 @@ app.get('/extraction/:id', async (req, res) => {
       title: 'Error',
       page: 'error',
       message: 'Failed to load extraction details',
-      error: { status: 500 }
+      error: { status: 500 },
+      user: (req as any).user || null
     });
   }
 });
 
-app.get('/extractions/:id', async (req, res) => {
+app.get('/extractions/:id', requireAuth as any, async (req: any, res) => {
   try {
     const { id } = req.params;
     const extraction = await Extraction.findById(id);
     res.render('layout', {
       title: 'Extraction Details',
       page: 'extraction',
-      extraction
+      extraction,
+      user: (req as any).user || null
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch extraction' });
   }
-
 });
 
+// Users management route (admin only)
+app.get('/users', requireAuth as any, async (req: any, res) => {
+  // Check if user is admin
+  const user = (req as any).user;
+  if (!user || user.role !== 'admin') {
+    res.status(403).render('layout', {
+      title: 'Access Denied',
+      page: 'error',
+      message: 'Admin access required',
+      error: { status: 403 },
+      user: user || null
+    });
+    return;
+  }
+
+  res.render('layout', {
+    title: 'User Management',
+    page: 'users',
+    user: user
+  });
+});
+
+// Users API route (admin only)
+app.get('/api/users', requireAuth as any, async (req: any, res) => {
+  // Check if user is admin
+  const user = (req as any).user;
+  if (!user || user.role !== 'admin') {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
+  try {
+    const User = (await import('./models/User')).default;
+    const users = await User.find({}, 'email role createdAt').sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.use('/', authRoutes); // Mount auth routes at root for web pages
 app.use('/api', routes);
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRoutes); // Keep API routes
 app.use('/api/extractions', extractionRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
@@ -140,7 +211,8 @@ app.use((req, res) => {
     title: 'Page Not Found',
     page: 'error',
     message: `The page "${req.path}" was not found on this server.`,
-    error: { status: 404 }
+    error: { status: 404 },
+    user: (req as any).user || null
   });
 });
 
