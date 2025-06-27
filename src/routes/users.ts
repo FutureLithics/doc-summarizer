@@ -160,4 +160,211 @@ router.post('/', requireAuth as any, requireAdmin as any, async (req: Request, r
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   put:
+ *     tags: [Users]
+ *     summary: Update user (Admin only)
+ *     description: Update a user's email and/or role. Only accessible by administrators.
+ *     security:
+ *       - sessionAuth: []
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *       - in: header
+ *         name: Authorization
+ *         schema:
+ *           type: string
+ *           example: "Bearer your-jwt-token-here"
+ *         required: false
+ *         description: Bearer token for authentication (alternative to session)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's new email address
+ *                 example: "updated@docextract.com"
+ *               role:
+ *                 type: string
+ *                 enum: [user, admin]
+ *                 description: User's new role
+ *                 example: "admin"
+ *     responses:
+ *       200:
+ *         description: User updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 _id:
+ *                   type: string
+ *                 email:
+ *                   type: string
+ *                 role:
+ *                   type: string
+ *                 createdAt:
+ *                   type: string
+ *       400:
+ *         description: Invalid input data
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Email already exists
+ */
+// Update user (admin only)
+router.put('/:id', requireAuth as any, requireAdmin as any, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { email, role } = req.body;
+
+    // Validate at least one field is provided
+    if (!email && !role) {
+      res.status(400).json({ 
+        error: 'At least one field (email or role) must be provided' 
+      });
+      return;
+    }
+
+    const User = (await import('../models/User')).default;
+
+    // Check if user exists
+    const existingUser = await User.findById(id);
+    if (!existingUser) {
+      res.status(404).json({ 
+        error: 'User not found' 
+      });
+      return;
+    }
+
+    const updateData: any = {};
+
+    // Validate and update email if provided
+    if (email !== undefined) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        res.status(400).json({ 
+          error: 'Invalid email format' 
+        });
+        return;
+      }
+
+      // Check if email is already taken by another user
+      const emailExists = await User.findOne({ 
+        email: email.toLowerCase(), 
+        _id: { $ne: id } 
+      });
+      if (emailExists) {
+        res.status(409).json({ 
+          error: 'Email already exists' 
+        });
+        return;
+      }
+
+      updateData.email = email.toLowerCase();
+    }
+
+    // Validate and update role if provided
+    if (role !== undefined) {
+      if (!['user', 'admin'].includes(role)) {
+        res.status(400).json({ 
+          error: 'Role must be either "user" or "admin"' 
+        });
+        return;
+      }
+      updateData.role = role;
+    }
+
+    // Update user
+    const updatedUser = await User.findByIdAndUpdate(
+      id, 
+      updateData, 
+      { new: true, select: 'email role createdAt' }
+    );
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   delete:
+ *     tags: [Users]
+ *     summary: Delete user (Admin only)
+ *     description: Delete a user from the system. Only accessible by administrators.
+ *     security:
+ *       - sessionAuth: []
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *       - in: header
+ *         name: Authorization
+ *         schema:
+ *           type: string
+ *           example: "Bearer your-jwt-token-here"
+ *         required: false
+ *         description: Bearer token for authentication (alternative to session)
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "User deleted successfully"
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
+// Delete user (admin only)
+router.delete('/:id', requireAuth as any, requireAdmin as any, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const User = (await import('../models/User')).default;
+
+    // Check if user exists
+    const existingUser = await User.findById(id);
+    if (!existingUser) {
+      res.status(404).json({ 
+        error: 'User not found' 
+      });
+      return;
+    }
+
+    // Delete user
+    await User.findByIdAndDelete(id);
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
 export default router; 

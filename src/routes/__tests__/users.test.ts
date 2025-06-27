@@ -598,4 +598,115 @@ describe('Users Routes', () => {
       expect(createdAt.getTime()).toBeLessThanOrEqual(afterCreate.getTime());
     });
   });
+
+  describe('PUT /api/users/:id (Update User)', () => {
+    it('should update user email and role', async () => {
+      // Create a user to update
+      const user = new User({ email: 'update@test.com', password: 'password123', role: 'user' });
+      await user.save();
+
+      const adminCookie = await createAdminAndLogin();
+
+      const updateData = {
+        email: 'updated@test.com',
+        role: 'admin'
+      };
+
+      const response = await request(app)
+        .put(`/api/users/${user._id}`)
+        .set('Cookie', adminCookie)
+        .send(updateData);
+
+      expect(response.status).toBe(200);
+      expect(response.body.email).toBe('updated@test.com');
+      expect(response.body.role).toBe('admin');
+
+      // Verify in database
+      const updatedUser = await User.findById(user._id);
+      expect(updatedUser!.email).toBe('updated@test.com');
+      expect(updatedUser!.role).toBe('admin');
+    });
+
+    it('should return 404 for non-existent user', async () => {
+      const adminCookie = await createAdminAndLogin();
+      const fakeId = new mongoose.Types.ObjectId();
+
+      const response = await request(app)
+        .put(`/api/users/${fakeId}`)
+        .set('Cookie', adminCookie)
+        .send({ email: 'test@test.com' });
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe('User not found');
+    });
+
+    it('should return 409 for duplicate email', async () => {
+      // Create two users
+      const user1 = new User({ email: 'user1@test.com', password: 'password123', role: 'user' });
+      const user2 = new User({ email: 'user2@test.com', password: 'password123', role: 'user' });
+      await user1.save();
+      await user2.save();
+
+      const adminCookie = await createAdminAndLogin();
+
+      // Try to update user2's email to user1's email
+      const response = await request(app)
+        .put(`/api/users/${user2._id}`)
+        .set('Cookie', adminCookie)
+        .send({ email: 'user1@test.com' });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error).toBe('Email already exists');
+    });
+  });
+
+  describe('DELETE /api/users/:id (Delete User)', () => {
+    it('should delete user successfully', async () => {
+      // Create a user to delete
+      const user = new User({ email: 'delete@test.com', password: 'password123', role: 'user' });
+      await user.save();
+
+      const adminCookie = await createAdminAndLogin();
+
+      const response = await request(app)
+        .delete(`/api/users/${user._id}`)
+        .set('Cookie', adminCookie);
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe('User deleted successfully');
+
+      // Verify user is deleted from database
+      const deletedUser = await User.findById(user._id);
+      expect(deletedUser).toBeNull();
+    });
+
+    it('should return 404 for non-existent user', async () => {
+      const adminCookie = await createAdminAndLogin();
+      const fakeId = new mongoose.Types.ObjectId();
+
+      const response = await request(app)
+        .delete(`/api/users/${fakeId}`)
+        .set('Cookie', adminCookie);
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe('User not found');
+    });
+
+    it('should require admin access', async () => {
+      const user = new User({ email: 'delete@test.com', password: 'password123', role: 'user' });
+      await user.save();
+
+      const userCookie = await createRegularUserAndLogin();
+
+      const response = await request(app)
+        .delete(`/api/users/${user._id}`)
+        .set('Cookie', userCookie);
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('Admin access required');
+    });
+  });
+
+
+  
 }); 

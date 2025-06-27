@@ -264,6 +264,7 @@ function displayUsers(users) {
 function createUserRow(user) {
     const row = document.createElement('tr');
     row.className = 'hover:bg-gray-50';
+    row.setAttribute('data-user-id', user.id || user._id);
     
     // Format creation date
     const createdDate = new Date(user.createdAt).toLocaleDateString('en-US', {
@@ -292,7 +293,7 @@ function createUserRow(user) {
                     </div>
                 </div>
                 <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900">
+                    <div class="text-sm font-medium text-gray-900 user-email" data-original="${escapeHtml(user.email)}">
                         ${escapeHtml(user.email)}
                     </div>
                     <div class="text-sm text-gray-500">
@@ -302,7 +303,7 @@ function createUserRow(user) {
             </div>
         </td>
         <td class="px-6 py-4 whitespace-nowrap">
-            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleClass}">
+            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleClass} user-role" data-original="${user.role}">
                 ${user.role === 'admin' ? '👑 Admin' : '👤 User'}
             </span>
         </td>
@@ -314,9 +315,228 @@ function createUserRow(user) {
                 ${status}
             </span>
         </td>
+        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+            <div class="flex space-x-2 justify-end">
+                <button onclick="editUser('${user.id || user._id}')" 
+                        class="text-indigo-600 hover:text-indigo-900 edit-btn">
+                    Edit
+                </button>
+                <button onclick="deleteUser('${user.id || user._id}')" 
+                        class="text-red-600 hover:text-red-900 delete-btn">
+                    Delete
+                </button>
+            </div>
+        </td>
     `;
     
     return row;
+}
+
+/**
+ * Edit user inline
+ * @param {string} userId - User ID
+ */
+function editUser(userId) {
+    const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+    if (!row) return;
+
+    const emailElement = row.querySelector('.user-email');
+    const roleElement = row.querySelector('.user-role');
+    const actionsCell = row.querySelector('td:last-child');
+
+    const originalEmail = emailElement.getAttribute('data-original');
+    const originalRole = roleElement.getAttribute('data-original');
+
+    // Replace email with input
+    emailElement.innerHTML = `
+        <input type="email" 
+               class="edit-email-input w-full px-2 py-1 border border-gray-300 rounded text-sm" 
+               value="${originalEmail}">
+    `;
+
+    // Replace role with select
+    roleElement.innerHTML = `
+        <select class="edit-role-select px-2 py-1 border border-gray-300 rounded text-xs">
+            <option value="user" ${originalRole === 'user' ? 'selected' : ''}>👤 User</option>
+            <option value="admin" ${originalRole === 'admin' ? 'selected' : ''}>👑 Admin</option>
+        </select>
+    `;
+
+    // Replace actions with save/cancel buttons
+    actionsCell.innerHTML = `
+        <div class="flex space-x-2 justify-end">
+            <button onclick="saveUser('${userId}')" 
+                    class="text-green-600 hover:text-green-900 save-btn">
+                Save
+            </button>
+            <button onclick="cancelEdit('${userId}')" 
+                    class="text-gray-600 hover:text-gray-900 cancel-btn">
+                Cancel
+            </button>
+        </div>
+    `;
+}
+
+/**
+ * Cancel edit mode
+ * @param {string} userId - User ID
+ */
+function cancelEdit(userId) {
+    const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+    if (!row) return;
+
+    const emailElement = row.querySelector('.user-email');
+    const roleElement = row.querySelector('.user-role');
+    const actionsCell = row.querySelector('td:last-child');
+
+    const originalEmail = emailElement.getAttribute('data-original');
+    const originalRole = roleElement.getAttribute('data-original');
+
+    // Restore original email
+    emailElement.innerHTML = escapeHtml(originalEmail);
+
+    // Restore original role
+    const roleClass = originalRole === 'admin' 
+        ? 'bg-purple-100 text-purple-800' 
+        : 'bg-gray-100 text-gray-800';
+    
+    roleElement.className = `inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleClass} user-role`;
+    roleElement.innerHTML = originalRole === 'admin' ? '👑 Admin' : '👤 User';
+
+    // Restore original actions
+    actionsCell.innerHTML = `
+        <div class="flex space-x-2 justify-end">
+            <button onclick="editUser('${userId}')" 
+                    class="text-indigo-600 hover:text-indigo-900 edit-btn">
+                Edit
+            </button>
+            <button onclick="deleteUser('${userId}')" 
+                    class="text-red-600 hover:text-red-900 delete-btn">
+                Delete
+            </button>
+        </div>
+    `;
+}
+
+/**
+ * Save user changes
+ * @param {string} userId - User ID
+ */
+async function saveUser(userId) {
+    const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+    if (!row) return;
+
+    const emailInput = row.querySelector('.edit-email-input');
+    const roleSelect = row.querySelector('.edit-role-select');
+
+    const newEmail = emailInput.value.trim();
+    const newRole = roleSelect.value;
+
+    if (!newEmail) {
+        alert('Email is required');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/users/${userId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: newEmail,
+                role: newRole
+            })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // Update the row with new data
+        const emailElement = row.querySelector('.user-email');
+        const roleElement = row.querySelector('.user-role');
+        const actionsCell = row.querySelector('td:last-child');
+
+        // Update email
+        emailElement.setAttribute('data-original', result.email);
+        emailElement.innerHTML = escapeHtml(result.email);
+
+        // Update role
+        const roleClass = result.role === 'admin' 
+            ? 'bg-purple-100 text-purple-800' 
+            : 'bg-gray-100 text-gray-800';
+        
+        roleElement.setAttribute('data-original', result.role);
+        roleElement.className = `inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleClass} user-role`;
+        roleElement.innerHTML = result.role === 'admin' ? '👑 Admin' : '👤 User';
+
+        // Restore actions
+        actionsCell.innerHTML = `
+            <div class="flex space-x-2 justify-end">
+                <button onclick="editUser('${userId}')" 
+                        class="text-indigo-600 hover:text-indigo-900 edit-btn">
+                    Edit
+                </button>
+                <button onclick="deleteUser('${userId}')" 
+                        class="text-red-600 hover:text-red-900 delete-btn">
+                    Delete
+                </button>
+            </div>
+        `;
+
+        // Refresh statistics
+        loadUsers();
+
+    } catch (error) {
+        console.error('Failed to update user:', error);
+        alert(`Failed to update user: ${error.message}`);
+    }
+}
+
+/**
+ * Delete user
+ * @param {string} userId - User ID
+ */
+async function deleteUser(userId) {
+    const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+    if (!row) return;
+
+    const emailElement = row.querySelector('.user-email');
+    const userEmail = emailElement.getAttribute('data-original');
+
+    if (!confirm(`Are you sure you want to delete user "${userEmail}"? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/users/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // Remove the row from the table
+        row.remove();
+
+        // Refresh the users list to update statistics
+        loadUsers();
+
+        console.log('User deleted successfully');
+
+    } catch (error) {
+        console.error('Failed to delete user:', error);
+        alert(`Failed to delete user: ${error.message}`);
+    }
 }
 
 /**

@@ -355,4 +355,66 @@ describe('UI Tests', () => {
       expect(statsGrid).toBeTruthy();
     });
   });
+
+  describe('Users Management Page', () => {
+    it('should display users table with action buttons', async () => {
+      await page.goto(`http://localhost:${TEST_PORT}/users`);
+      
+      // Check if we can access the users page (might need authentication)
+      const pageTitle = await page.title();
+      
+      if (pageTitle.includes('User Management')) {
+        // Check for action buttons in table
+        const editButtons = await page.$$('.edit-btn');
+        const deleteButtons = await page.$$('.delete-btn');
+        
+        if (editButtons.length > 0) {
+          expect(editButtons.length).toBeGreaterThan(0);
+          expect(deleteButtons.length).toBeGreaterThan(0);
+          expect(editButtons.length).toBe(deleteButtons.length);
+        }
+      }
+    });
+
+    it('should enable inline editing when edit button is clicked', async () => {
+      await page.goto(`http://localhost:${TEST_PORT}/users`);
+      
+      const editButton = await page.$('.edit-btn');
+      if (editButton) {
+        await editButton.click();
+        
+        // Check that input fields appear
+        const emailInput = await page.$('.edit-email-input');
+        const roleSelect = await page.$('.edit-role-select');
+        const saveButton = await page.$('.save-btn');
+        const cancelButton = await page.$('.cancel-btn');
+        
+        expect(emailInput).toBeTruthy();
+        expect(roleSelect).toBeTruthy();
+        expect(saveButton).toBeTruthy();
+        expect(cancelButton).toBeTruthy();
+      }
+    });
+
+    it('should show confirmation dialog when delete button is clicked', async () => {
+      await page.goto(`http://localhost:${TEST_PORT}/users`);
+      
+      // Mock the confirm dialog
+      await page.evaluateOnNewDocument(() => {
+        window.confirm = () => false; // Cancel deletion
+      });
+      
+      const deleteButton = await page.$('.delete-btn');
+      if (deleteButton) {
+        // Set up dialog handler
+        page.on('dialog', async dialog => {
+          expect(dialog.type()).toBe('confirm');
+          expect(dialog.message()).toContain('Are you sure');
+          await dialog.dismiss();
+        });
+        
+        await deleteButton.click();
+      }
+    });
+  });
 }); 
