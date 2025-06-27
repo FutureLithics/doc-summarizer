@@ -73,6 +73,31 @@ function bindEventListeners() {
             }
         });
     }
+
+    // Event delegation for dynamically created user action buttons
+    const usersTableBody = document.getElementById('users-table-body');
+    if (usersTableBody) {
+        usersTableBody.addEventListener('click', (e) => {
+            const target = e.target;
+            const userId = target.closest('tr')?.getAttribute('data-user-id');
+            
+            if (!userId) return;
+
+            if (target.classList.contains('edit-btn')) {
+                e.preventDefault();
+                editUser(userId);
+            } else if (target.classList.contains('delete-btn')) {
+                e.preventDefault();
+                deleteUser(userId);
+            } else if (target.classList.contains('save-btn')) {
+                e.preventDefault();
+                saveUser(userId);
+            } else if (target.classList.contains('cancel-btn')) {
+                e.preventDefault();
+                cancelEdit(userId);
+            }
+        });
+    }
 }
 
 /**
@@ -317,12 +342,10 @@ function createUserRow(user) {
         </td>
         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
             <div class="flex space-x-2 justify-end">
-                <button onclick="editUser('${user.id || user._id}')" 
-                        class="text-indigo-600 hover:text-indigo-900 edit-btn">
+                <button class="text-indigo-600 hover:text-indigo-900 edit-btn">
                     Edit
                 </button>
-                <button onclick="deleteUser('${user.id || user._id}')" 
-                        class="text-red-600 hover:text-red-900 delete-btn">
+                <button class="text-red-600 hover:text-red-900 delete-btn">
                     Delete
                 </button>
             </div>
@@ -350,9 +373,29 @@ function editUser(userId) {
     // Replace email with input
     emailElement.innerHTML = `
         <input type="email" 
-               class="edit-email-input w-full px-2 py-1 border border-gray-300 rounded text-sm" 
+               class="edit-email-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
                value="${originalEmail}">
     `;
+
+    // Add real-time email validation
+    const emailInput = emailElement.querySelector('.edit-email-input');
+    emailInput.addEventListener('input', function() {
+        const email = this.value.trim();
+        
+        // Clear previous errors first
+        clearInlineError(this);
+        
+        // Only validate if there's content (allow empty during typing)
+        if (email && email.length > 0) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                showInlineError(this, 'Please enter a valid email address');
+            }
+        }
+    });
+
+    // Focus the email input
+    emailInput.focus();
 
     // Replace role with select
     roleElement.innerHTML = `
@@ -365,12 +408,10 @@ function editUser(userId) {
     // Replace actions with save/cancel buttons
     actionsCell.innerHTML = `
         <div class="flex space-x-2 justify-end">
-            <button onclick="saveUser('${userId}')" 
-                    class="text-green-600 hover:text-green-900 save-btn">
+            <button class="text-green-600 hover:text-green-900 save-btn">
                 Save
             </button>
-            <button onclick="cancelEdit('${userId}')" 
-                    class="text-gray-600 hover:text-gray-900 cancel-btn">
+            <button class="text-gray-600 hover:text-gray-900 cancel-btn">
                 Cancel
             </button>
         </div>
@@ -389,6 +430,12 @@ function cancelEdit(userId) {
     const roleElement = row.querySelector('.user-role');
     const actionsCell = row.querySelector('td:last-child');
 
+    // Clear any inline errors before canceling
+    const emailInput = emailElement.querySelector('.edit-email-input');
+    if (emailInput) {
+        clearInlineError(emailInput);
+    }
+
     const originalEmail = emailElement.getAttribute('data-original');
     const originalRole = roleElement.getAttribute('data-original');
 
@@ -406,12 +453,10 @@ function cancelEdit(userId) {
     // Restore original actions
     actionsCell.innerHTML = `
         <div class="flex space-x-2 justify-end">
-            <button onclick="editUser('${userId}')" 
-                    class="text-indigo-600 hover:text-indigo-900 edit-btn">
+            <button class="text-indigo-600 hover:text-indigo-900 edit-btn">
                 Edit
             </button>
-            <button onclick="deleteUser('${userId}')" 
-                    class="text-red-600 hover:text-red-900 delete-btn">
+            <button class="text-red-600 hover:text-red-900 delete-btn">
                 Delete
             </button>
         </div>
@@ -432,10 +477,21 @@ async function saveUser(userId) {
     const newEmail = emailInput.value.trim();
     const newRole = roleSelect.value;
 
+    // Validate email is not empty
     if (!newEmail) {
-        alert('Email is required');
+        showInlineError(emailInput, 'Email is required');
         return;
     }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+        showInlineError(emailInput, 'Please enter a valid email address');
+        return;
+    }
+
+    // Remove any existing error styling
+    clearInlineError(emailInput);
 
     try {
         const response = await fetch(`/api/users/${userId}`, {
@@ -476,12 +532,10 @@ async function saveUser(userId) {
         // Restore actions
         actionsCell.innerHTML = `
             <div class="flex space-x-2 justify-end">
-                <button onclick="editUser('${userId}')" 
-                        class="text-indigo-600 hover:text-indigo-900 edit-btn">
+                <button class="text-indigo-600 hover:text-indigo-900 edit-btn">
                     Edit
                 </button>
-                <button onclick="deleteUser('${userId}')" 
-                        class="text-red-600 hover:text-red-900 delete-btn">
+                <button class="text-red-600 hover:text-red-900 delete-btn">
                     Delete
                 </button>
             </div>
@@ -492,7 +546,14 @@ async function saveUser(userId) {
 
     } catch (error) {
         console.error('Failed to update user:', error);
-        alert(`Failed to update user: ${error.message}`);
+        
+        // Show error on the email input if it's an email-related error
+        if (error.message.toLowerCase().includes('email')) {
+            showInlineError(emailInput, error.message);
+        } else {
+            // For other errors, show a general alert
+            alert(`Failed to update user: ${error.message}`);
+        }
     }
 }
 
@@ -596,6 +657,47 @@ function showErrorState() {
     document.getElementById('total-users').textContent = '-';
     document.getElementById('admin-users').textContent = '-';
     document.getElementById('regular-users').textContent = '-';
+}
+
+/**
+ * Show inline error for form input
+ * @param {HTMLElement} input - Input element to show error for
+ * @param {string} message - Error message to display
+ */
+function showInlineError(input, message) {
+    // Remove any existing error
+    clearInlineError(input);
+    
+    // Add error styling to input
+    input.classList.add('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+    input.classList.remove('border-gray-300', 'focus:border-blue-500', 'focus:ring-blue-500');
+    
+    // Create and insert error message
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'inline-error-message text-red-500 text-xs mt-1';
+    errorDiv.textContent = message;
+    
+    // Insert error message after the input
+    input.parentNode.insertBefore(errorDiv, input.nextSibling);
+    
+    // Focus the input
+    input.focus();
+}
+
+/**
+ * Clear inline error for form input
+ * @param {HTMLElement} input - Input element to clear error for
+ */
+function clearInlineError(input) {
+    // Remove error styling from input
+    input.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+    input.classList.add('border-gray-300', 'focus:border-blue-500', 'focus:ring-blue-500');
+    
+    // Remove any existing error message
+    const existingError = input.parentNode.querySelector('.inline-error-message');
+    if (existingError) {
+        existingError.remove();
+    }
 }
 
 /**
