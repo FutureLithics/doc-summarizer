@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IExtraction extends Document {
+  userId: mongoose.Types.ObjectId;
   status: 'completed' | 'processing' | 'failed';
   fileName: string;
   documentType: string;
@@ -10,6 +11,11 @@ export interface IExtraction extends Document {
 }
 
 const ExtractionSchema: Schema = new Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
   status: {
     type: String,
     enum: ['completed', 'processing', 'failed'],

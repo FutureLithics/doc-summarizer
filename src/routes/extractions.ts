@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 // Add pdf-parse import for proper PDF text extraction
 import pdfParse from 'pdf-parse';
 import { extractPdfTextForTests } from './__tests__/testHelpers';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireSuperAdmin } from '../middleware/auth';
 
 const router = Router();
 
@@ -180,9 +180,25 @@ const processDocument = async (buffer: Buffer, mimetype: string, fileName: strin
  *                   summary:
  *                     type: string
  */
-const getExtractions = async (_: Request, res: Response): Promise<void> => {
+const getExtractions = async (req: Request, res: Response): Promise<void> => {
   try {
-    const extractions = await Extraction.find().lean().select('-originalText');
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
+
+    if (!userId) {
+      res.status(401).json({ message: 'User authentication required' });
+      return;
+    }
+
+    // Admins and superadmins can see all extractions, regular users only see their own
+    const filter = (userRole === 'admin' || userRole === 'superadmin') ? {} : { userId };
+    
+    const extractions = await Extraction.find(filter)
+      .populate('userId', 'email role')
+      .lean()
+      .select('-originalText')
+      .sort({ createdAt: -1 });
+    
     res.json(extractions);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch extractions' });
@@ -242,8 +258,15 @@ const uploadDocument = async (req: Request, res: Response): Promise<void> => {
     const fileBuffer = req.file.buffer;
     const fileType = req.file.mimetype;
     const fileName = req.file.originalname;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      res.status(401).json({ message: 'User authentication required' });
+      return;
+    }
 
     const extraction = new Extraction({
+      userId,
       status: 'processing',
       fileName,
       documentType: fileType
@@ -337,14 +360,29 @@ const uploadDocument = async (req: Request, res: Response): Promise<void> => {
 const getExtractionById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
     
+    if (!userId) {
+      res.status(401).json({ message: 'User authentication required' });
+      return;
+    }
+
     // Check if ID is valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       res.status(404).json({ message: 'Extraction not found' });
       return;
     }
 
-    const extraction = await Extraction.findById(id).lean();
+    // Build query filter - admins and superadmins can access any extraction, users only their own
+    const filter: any = { _id: id };
+    if (userRole !== 'admin' && userRole !== 'superadmin') {
+      filter.userId = userId;
+    }
+
+    const extraction = await Extraction.findOne(filter)
+      .populate('userId', 'email role')
+      .lean();
     
     if (extraction) {
       res.json(extraction);
@@ -388,14 +426,27 @@ const getExtractionById = async (req: Request, res: Response): Promise<void> => 
 const deleteExtraction = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
     
+    if (!userId) {
+      res.status(401).json({ message: 'User authentication required' });
+      return;
+    }
+
     // Check if ID is valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       res.status(404).json({ message: 'Extraction not found' });
       return;
     }
 
-    const result = await Extraction.findByIdAndDelete(id);
+    // Build query filter - admins and superadmins can delete any extraction, users only their own
+    const filter: any = { _id: id };
+    if (userRole !== 'admin' && userRole !== 'superadmin') {
+      filter.userId = userId;
+    }
+
+    const result = await Extraction.findOneAndDelete(filter);
     
     if (result) {
       res.json({ message: 'Extraction deleted successfully' });
@@ -451,7 +502,14 @@ const updateExtraction = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { fileName, summary } = req.body;
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
     
+    if (!userId) {
+      res.status(401).json({ message: 'User authentication required' });
+      return;
+    }
+
     // Check if ID is valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       res.status(404).json({ message: 'Extraction not found' });
@@ -479,8 +537,14 @@ const updateExtraction = async (req: Request, res: Response): Promise<void> => {
       updateData.summary = summary.trim();
     }
 
-    const result = await Extraction.findByIdAndUpdate(
-      id, 
+    // Build query filter - admins and superadmins can update any extraction, users only their own
+    const filter: any = { _id: id };
+    if (userRole !== 'admin' && userRole !== 'superadmin') {
+      filter.userId = userId;
+    }
+
+    const result = await Extraction.findOneAndUpdate(
+      filter, 
       updateData, 
       { new: true, runValidators: true }
     ).lean();
@@ -496,9 +560,95 @@ const updateExtraction = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+/**
+ * @swagger
+ * /extractions/{id}/reassign:
+ *   put:
+ *     tags: [Extractions]
+ *     summary: Reassign extraction to another user (Super Admin only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Extraction ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: New user ID to assign extraction to
+ *     responses:
+ *       200:
+ *         description: Extraction reassigned successfully
+ *       400:
+ *         description: Invalid user ID
+ *       403:
+ *         description: Super admin access required
+ *       404:
+ *         description: Extraction or user not found
+ */
+const reassignExtraction = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { userId: newUserId } = req.body;
+
+    if (!newUserId) {
+      res.status(400).json({ message: 'User ID is required' });
+      return;
+    }
+
+    // Check if extraction ID is valid
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    // Check if new user ID is valid
+    if (!mongoose.Types.ObjectId.isValid(newUserId)) {
+      res.status(400).json({ message: 'Invalid user ID' });
+      return;
+    }
+
+    // Verify the new user exists
+    const User = (await import('../models/User')).default;
+    const newUser = await User.findById(newUserId);
+    if (!newUser) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    // Find and update the extraction
+    const extraction = await Extraction.findByIdAndUpdate(
+      id,
+      { userId: newUserId },
+      { new: true }
+    ).populate('userId', 'email role');
+
+    if (!extraction) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    res.json({ 
+      message: 'Extraction reassigned successfully',
+      extraction 
+    });
+  } catch (error) {
+    console.error('Error reassigning extraction:', error);
+    res.status(500).json({ message: 'Failed to reassign extraction' });
+  }
+};
+
 router.get('/', requireAuth as any, getExtractions);
 router.post('/upload', requireAuth as any, uploadMiddleware, uploadDocument);
 router.put('/:id', requireAuth as any, updateExtraction);
+router.put('/:id/reassign', requireSuperAdmin as any, reassignExtraction);
 router.get('/:id', requireAuth as any, getExtractionById);
 router.delete('/:id', requireAuth as any, deleteExtraction);
 

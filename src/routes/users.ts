@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth, requireAdmin } from '../middleware/auth';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -110,9 +111,9 @@ router.post('/', requireAuth as any, requireAdmin as any, async (req: Request, r
     }
 
     // Validate role (empty string should fail role validation, not required field validation)
-    if (!['user', 'admin'].includes(role)) {
+    if (!['user', 'admin', 'superadmin'].includes(role)) {
       res.status(400).json({ 
-        error: 'Role must be either "user" or "admin"' 
+        error: 'Role must be "user", "admin", or "superadmin"' 
       });
       return;
     }
@@ -224,18 +225,21 @@ router.post('/', requireAuth as any, requireAdmin as any, async (req: Request, r
  *       409:
  *         description: Email already exists
  */
-// Update user (admin only)
-router.put('/:id', requireAuth as any, requireAdmin as any, async (req: Request, res: Response) => {
+// Update user (admin only) OR Update own profile
+router.put('/:id', requireAuth as any, async (req: any, res: Response) => {
   try {
     const { id } = req.params;
-    const { email, role } = req.body;
-
-    // Validate at least one field is provided
-    if (!email && !role) {
-      res.status(400).json({ 
-        error: 'At least one field (email or role) must be provided' 
-      });
-      return;
+    const { email, role, currentPassword, newPassword } = req.body;
+    
+    // Check if user is updating their own profile or is an admin
+    const isOwnProfile = req.user.id === id;
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    
+    if (!isOwnProfile && !isAdmin) {
+        res.status(403).json({ 
+            error: 'Access denied. You can only update your own profile or be an admin.' 
+        });
+        return;
     }
 
     const User = (await import('../models/User')).default;
@@ -249,7 +253,91 @@ router.put('/:id', requireAuth as any, requireAdmin as any, async (req: Request,
       return;
     }
 
-    const updateData: any = {};
+    // Handle own profile update with password changes
+    if (isOwnProfile && (currentPassword || newPassword)) {
+      // Require current password for any profile changes
+      if (!currentPassword) {
+        res.status(400).json({ 
+          error: 'Current password is required to update your profile' 
+        });
+        return;
+      }
+
+      // Verify current password
+      const isValidPassword = await bcrypt.compare(currentPassword, existingUser.password);
+      if (!isValidPassword) {
+        res.status(400).json({ 
+          error: 'Current password is incorrect' 
+        });
+        return;
+      }
+
+      const updateData: any = {};
+
+      // Update email if provided
+      if (email && email !== existingUser.email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          res.status(400).json({ 
+            error: 'Invalid email format' 
+          });
+          return;
+        }
+
+        // Check if email is already taken
+        const emailExists = await User.findOne({ 
+          email: email.toLowerCase(), 
+          _id: { $ne: id } 
+        });
+        if (emailExists) {
+          res.status(409).json({ 
+            error: 'Email already exists' 
+          });
+          return;
+        }
+
+        updateData.email = email.toLowerCase();
+      }
+
+      // Update password if provided
+      if (newPassword) {
+        if (newPassword.length < 6) {
+          res.status(400).json({ 
+            error: 'New password must be at least 6 characters long' 
+          });
+          return;
+        }
+        updateData.password = newPassword;
+      }
+
+      // Update user
+      const updatedUser = await User.findByIdAndUpdate(
+        id, 
+        updateData, 
+        { new: true, select: 'email role createdAt' }
+      );
+
+      res.json(updatedUser);
+      return;
+    }
+
+    // Handle admin user management (only admins can change roles)
+    if (!isAdmin) {
+      res.status(403).json({ 
+        error: 'Admin access required to modify user roles' 
+      });
+      return;
+    }
+
+    // Validate at least one field is provided
+    if (!email && !role) {
+      res.status(400).json({ 
+        error: 'At least one field (email or role) must be provided' 
+      });
+      return;
+    }
+
+    const adminUpdateData: any = {};
 
     // Validate and update email if provided
     if (email !== undefined) {
@@ -273,24 +361,24 @@ router.put('/:id', requireAuth as any, requireAdmin as any, async (req: Request,
         return;
       }
 
-      updateData.email = email.toLowerCase();
+      adminUpdateData.email = email.toLowerCase();
     }
 
-    // Validate and update role if provided
-    if (role !== undefined) {
-      if (!['user', 'admin'].includes(role)) {
-        res.status(400).json({ 
-          error: 'Role must be either "user" or "admin"' 
-        });
-        return;
-      }
-      updateData.role = role;
-    }
+         // Validate and update role if provided
+     if (role !== undefined) {
+       if (!['user', 'admin', 'superadmin'].includes(role)) {
+         res.status(400).json({ 
+           error: 'Role must be "user", "admin", or "superadmin"' 
+         });
+         return;
+       }
+       adminUpdateData.role = role;
+     }
 
     // Update user
     const updatedUser = await User.findByIdAndUpdate(
       id, 
-      updateData, 
+      adminUpdateData, 
       { new: true, select: 'email role createdAt' }
     );
 

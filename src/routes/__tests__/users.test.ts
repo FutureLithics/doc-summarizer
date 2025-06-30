@@ -408,7 +408,7 @@ describe('Users Routes', () => {
           .send({ email: 'test@test.com', role, password: 'password123' });
 
         expect(response.status).toBe(400);
-        expect(response.body.error).toBe('Role must be either "user" or "admin"');
+        expect(response.body.error).toBe('Role must be "user", "admin", or "superadmin"');
       }
     });
 

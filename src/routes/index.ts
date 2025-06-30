@@ -34,6 +34,8 @@ router.get('/', (req, res) => {
 // Authentication routes (public)
 router.use('/auth', authRoutes);
 
+
+
 // Protected routes
 router.use('/extractions', requireAuth as any, extractionRoutes);
 router.use('/extraction', requireAuth as any, extractionRoutes);

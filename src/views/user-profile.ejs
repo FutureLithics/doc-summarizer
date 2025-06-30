@@ -1,0 +1,303 @@
+<div class="space-y-8">
+    <div id="profile-data" data-user-id="<%= profileUser._id %>" data-is-own-profile="<%= JSON.stringify(isOwnProfile) %>" data-user-role="<%= user.role %>"></div>
+    <!-- Page Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+        <div class="flex items-center space-x-4">
+            <!-- Profile Avatar -->
+            <div class="flex-shrink-0 h-16 w-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                <span class="text-white font-bold text-2xl">
+                    <%= profileUser.email.charAt(0).toUpperCase() %>
+                </span>
+            </div>
+            
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800 mb-1">
+                    <% if (isOwnProfile) { %>
+                        My Profile
+                    <% } else { %>
+                        User Profile
+                    <% } %>
+                </h1>
+                <p class="text-gray-600 flex items-center">
+                    <%= profileUser.email %>
+                    <% if (profileUser.role === 'admin') { %>
+                        <span class="ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">👑 Admin</span>
+                    <% } else if (profileUser.role === 'superadmin') { %>
+                        <span class="ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">🔥 Super Admin</span>
+                    <% } else { %>
+                        <span class="ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">👤 User</span>
+                    <% } %>
+                </p>
+            </div>
+        </div>
+        
+        <div class="mt-4 md:mt-0 flex items-center space-x-3">
+            <% if (isOwnProfile) { %>
+                <button id="edit-profile-btn" class="btn-secondary inline-flex items-center">
+                    <span class="mr-2">✏️</span>
+                    Edit Profile
+                </button>
+            <% } %>
+            
+            <% if (!isOwnProfile && (user.role === 'admin' || user.role === 'superadmin')) { %>
+                <button id="edit-user-btn" class="btn-secondary inline-flex items-center">
+                    <span class="mr-2">⚙️</span>
+                    Manage User
+                </button>
+            <% } %>
+            
+            <% if (!isOwnProfile) { %>
+                <a href="/users" class="btn-primary inline-flex items-center">
+                    <span class="mr-2">←</span>
+                    Back to Users
+                </a>
+            <% } %>
+        </div>
+    </div>
+
+    <!-- User Information Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Account Info -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span class="text-blue-600 text-sm font-semibold">📅</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Member Since</p>
+                    <p class="text-lg font-semibold text-gray-900">
+                        <%= new Date(profileUser.createdAt).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                        }) %>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Extractions Count -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <span class="text-green-600 text-sm font-semibold">📄</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Total Extractions</p>
+                    <p id="total-extractions" class="text-lg font-semibold text-gray-900">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Completed Extractions -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span class="text-purple-600 text-sm font-semibold">✅</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Completed</p>
+                    <p id="completed-extractions" class="text-lg font-semibold text-gray-900">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success Rate -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                        <span class="text-yellow-600 text-sm font-semibold">📊</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Success Rate</p>
+                    <p id="success-rate" class="text-lg font-semibold text-gray-900">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Details Section -->
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-800">Account Details</h3>
+        </div>
+        
+        <div class="p-6">
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Email Address</dt>
+                    <dd class="text-sm text-gray-900 font-mono bg-gray-50 px-2 py-1 rounded">
+                        <%= profileUser.email %>
+                    </dd>
+                </div>
+                
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">User Role</dt>
+                    <dd class="text-sm text-gray-900">
+                        <% if (profileUser.role === 'admin') { %>
+                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                                👑 Administrator
+                            </span>
+                        <% } else if (profileUser.role === 'superadmin') { %>
+                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                🔥 Super Administrator
+                            </span>
+                        <% } else { %>
+                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                👤 Regular User
+                            </span>
+                        <% } %>
+                    </dd>
+                </div>
+                
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Account Created</dt>
+                    <dd class="text-sm text-gray-900">
+                        <%= new Date(profileUser.createdAt).toLocaleString() %>
+                    </dd>
+                </div>
+                
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">User ID</dt>
+                    <dd class="text-sm text-gray-900 font-mono bg-gray-50 px-2 py-1 rounded">
+                        <%= profileUser._id %>
+                    </dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    <!-- Recent Activity Section -->
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h3 class="text-lg font-semibold text-gray-800">Recent Extractions</h3>
+            <% if (isOwnProfile) { %>
+                <a href="/extractions" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                    View All →
+                </a>
+            <% } %>
+        </div>
+        
+        <!-- Loading State -->
+        <div id="extractions-loading" class="px-6 py-8 text-center">
+            <div class="inline-flex items-center">
+                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                <span class="text-gray-600">Loading recent activity...</span>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="extractions-error" class="hidden px-6 py-8 text-center">
+            <div class="text-red-600 mb-2">⚠️ Failed to load recent activity</div>
+        </div>
+
+        <!-- Extractions List -->
+        <div id="extractions-list" class="hidden">
+            <div class="divide-y divide-gray-200">
+                <!-- Recent extractions will be populated here -->
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="extractions-empty" class="hidden px-6 py-12 text-center">
+            <div class="text-gray-400 mb-4">
+                <svg class="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <h3 class="text-sm font-medium text-gray-900 mb-1">No extractions yet</h3>
+            <p class="text-sm text-gray-500">
+                <% if (isOwnProfile) { %>
+                    Upload your first document to get started.
+                <% } else { %>
+                    This user hasn't uploaded any documents yet.
+                <% } %>
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Profile Management Modal (for own profile) -->
+<% if (isOwnProfile) { %>
+<div id="edit-profile-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="relative bg-white p-6 border w-full max-w-md mx-4 rounded-lg">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Edit Profile</h3>
+            <button id="close-edit-modal" class="text-gray-400 hover:text-gray-600">
+                <span class="sr-only">Close</span>
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        
+        <form id="edit-profile-form">
+            <div class="mb-4">
+                <label for="profile-email" class="block text-sm font-medium text-gray-700 mb-2">
+                    Email Address
+                </label>
+                <input 
+                    type="email" 
+                    id="profile-email" 
+                    name="email" 
+                    value="<%= profileUser.email %>"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required>
+            </div>
+            
+            <div class="mb-4">
+                <label for="current-password" class="block text-sm font-medium text-gray-700 mb-2">
+                    Current Password
+                </label>
+                <input 
+                    type="password" 
+                    id="current-password" 
+                    name="currentPassword" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter to change email or password">
+            </div>
+            
+            <div class="mb-4">
+                <label for="new-password" class="block text-sm font-medium text-gray-700 mb-2">
+                    New Password (optional)
+                </label>
+                <input 
+                    type="password" 
+                    id="new-password" 
+                    name="newPassword" 
+                    minlength="6"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Leave blank to keep current password">
+            </div>
+            
+            <div id="profile-error" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p class="text-red-600 text-sm"></p>
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+                <button 
+                    type="button" 
+                    id="cancel-edit"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 border border-gray-300 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                    Cancel
+                </button>
+                <button 
+                    type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<% } %>
+
+<script src="/js/user-profile.js"></script> 

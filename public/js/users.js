@@ -301,6 +301,8 @@ function createUserRow(user) {
     // Determine role badge styling
     const roleClass = user.role === 'admin' 
         ? 'bg-purple-100 text-purple-800' 
+        : user.role === 'superadmin'
+        ? 'bg-red-100 text-red-800'
         : 'bg-gray-100 text-gray-800';
     
     // Determine status (for future use - currently all active)
@@ -319,7 +321,9 @@ function createUserRow(user) {
                 </div>
                 <div class="ml-4">
                     <div class="text-sm font-medium text-gray-900 user-email" data-original="${escapeHtml(user.email)}">
-                        ${escapeHtml(user.email)}
+                        <a href="/user/${user._id}" class="text-blue-600 hover:text-blue-800 hover:underline">
+                            ${escapeHtml(user.email)}
+                        </a>
                     </div>
                     <div class="text-sm text-gray-500">
                         ID: ${user.id || user._id}
@@ -329,7 +333,7 @@ function createUserRow(user) {
         </td>
         <td class="px-6 py-4 whitespace-nowrap">
             <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleClass} user-role" data-original="${user.role}">
-                ${user.role === 'admin' ? '👑 Admin' : '👤 User'}
+                ${user.role === 'admin' ? '👑 Admin' : user.role === 'superadmin' ? '🔥 Super Admin' : '👤 User'}
             </span>
         </td>
         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -402,6 +406,7 @@ function editUser(userId) {
         <select class="edit-role-select px-2 py-1 border border-gray-300 rounded text-xs">
             <option value="user" ${originalRole === 'user' ? 'selected' : ''}>👤 User</option>
             <option value="admin" ${originalRole === 'admin' ? 'selected' : ''}>👑 Admin</option>
+            <option value="superadmin" ${originalRole === 'superadmin' ? 'selected' : ''}>🔥 Super Admin</option>
         </select>
     `;
 
@@ -440,15 +445,21 @@ function cancelEdit(userId) {
     const originalRole = roleElement.getAttribute('data-original');
 
     // Restore original email
-    emailElement.innerHTML = escapeHtml(originalEmail);
+    emailElement.innerHTML = `
+        <a href="/user/${userId}" class="text-blue-600 hover:text-blue-800 hover:underline">
+            ${escapeHtml(originalEmail)}
+        </a>
+    `;
 
     // Restore original role
     const roleClass = originalRole === 'admin' 
         ? 'bg-purple-100 text-purple-800' 
+        : originalRole === 'superadmin'
+        ? 'bg-red-100 text-red-800'
         : 'bg-gray-100 text-gray-800';
     
     roleElement.className = `inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleClass} user-role`;
-    roleElement.innerHTML = originalRole === 'admin' ? '👑 Admin' : '👤 User';
+    roleElement.innerHTML = originalRole === 'admin' ? '👑 Admin' : originalRole === 'superadmin' ? '🔥 Super Admin' : '👤 User';
 
     // Restore original actions
     actionsCell.innerHTML = `
@@ -518,16 +529,22 @@ async function saveUser(userId) {
 
         // Update email
         emailElement.setAttribute('data-original', result.email);
-        emailElement.innerHTML = escapeHtml(result.email);
+        emailElement.innerHTML = `
+            <a href="/user/${userId}" class="text-blue-600 hover:text-blue-800 hover:underline">
+                ${escapeHtml(result.email)}
+            </a>
+        `;
 
         // Update role
         const roleClass = result.role === 'admin' 
             ? 'bg-purple-100 text-purple-800' 
+            : result.role === 'superadmin'
+            ? 'bg-red-100 text-red-800'
             : 'bg-gray-100 text-gray-800';
         
         roleElement.setAttribute('data-original', result.role);
         roleElement.className = `inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleClass} user-role`;
-        roleElement.innerHTML = result.role === 'admin' ? '👑 Admin' : '👤 User';
+        roleElement.innerHTML = result.role === 'admin' ? '👑 Admin' : result.role === 'superadmin' ? '🔥 Super Admin' : '👤 User';
 
         // Restore actions
         actionsCell.innerHTML = `
@@ -540,9 +557,6 @@ async function saveUser(userId) {
                 </button>
             </div>
         `;
-
-        // Refresh statistics
-        loadUsers();
 
     } catch (error) {
         console.error('Failed to update user:', error);
@@ -606,7 +620,7 @@ async function deleteUser(userId) {
  */
 function updateStatistics(users) {
     const totalUsers = users.length;
-    const adminUsers = users.filter(user => user.role === 'admin').length;
+    const adminUsers = users.filter(user => user.role === 'admin' || user.role === 'superadmin').length;
     const regularUsers = users.filter(user => user.role === 'user').length;
     
     // Update DOM elements

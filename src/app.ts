@@ -6,7 +6,7 @@ import session from 'express-session';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
 import { errorHandler } from './middleware/errorHandler';
-import { optionalAuth, requireAuth, AuthenticatedRequest } from './middleware/auth';
+import { optionalAuth, requireAuth, requireAdmin, AuthenticatedRequest } from './middleware/auth';
 import routes from './routes';
 import authRoutes from './routes/auth';
 import extractionRoutes from './routes/extractions';
@@ -88,9 +88,16 @@ app.get('/', optionalAuth, async (req, res) => {
 
 app.get('/extractions', requireAuth as any, async (req: any, res) => {
   try {
-    // Fetch extractions with only the required fields (including _id for links)
-    const extractions = await Extraction.find()
-      .select('_id summary createdAt fileName status')
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
+
+    // Admins and superadmins can see all extractions, regular users only see their own
+    const filter = (userRole === 'admin' || userRole === 'superadmin') ? {} : { userId };
+
+    // Fetch extractions with populated user data for superadmin view
+    const extractions = await Extraction.find(filter)
+      .populate('userId', 'email role')
+      .select('_id summary createdAt fileName status userId')
       .sort({ createdAt: -1 }) // Most recent first
       .lean();
 
@@ -159,11 +166,11 @@ app.get('/extractions/:id', requireAuth as any, async (req: any, res) => {
   }
 });
 
-// Users management route (admin only)
+// Users management route (admin and superadmin only)
 app.get('/users', requireAuth as any, async (req: any, res) => {
-  // Check if user is admin
+  // Check if user is admin or superadmin
   const user = (req as any).user;
-  if (!user || user.role !== 'admin') {
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     res.status(403).render('layout', {
       title: 'Access Denied',
       page: 'error',
@@ -179,6 +186,78 @@ app.get('/users', requireAuth as any, async (req: any, res) => {
     page: 'users',
     user: user
   });
+});
+
+// User profile routes (protected)
+app.get('/profile', requireAuth as any, async (req: any, res) => {
+  try {
+    const User = (await import('./models/User')).default;
+    const profileUser = await User.findById(req.user.id).select('-password');
+    
+    if (!profileUser) {
+      return res.status(404).render('layout', { 
+        title: 'User Not Found',
+        page: 'error',
+        message: 'The requested user profile could not be found.',
+        error: { status: 404 },
+        user: req.user || null
+      });
+    }
+
+    res.render('layout', {
+      title: 'My Profile - DocExtract',
+      page: 'user-profile',
+      profileUser: profileUser.toObject(),
+      isOwnProfile: true,
+      user: req.user
+    });
+  } catch (error) {
+    console.error('Error loading profile:', error);
+    res.status(500).render('layout', {
+      title: 'Server Error',
+      page: 'error',
+      message: 'An error occurred while loading your profile.',
+      error: { status: 500 },
+      user: req.user || null
+    });
+  }
+});
+
+// View specific user profile (admin only)
+app.get('/user/:id', requireAuth as any, requireAdmin as any, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const User = (await import('./models/User')).default;
+    
+    const profileUser = await User.findById(id).select('-password');
+    
+    if (!profileUser) {
+      return res.status(404).render('layout', { 
+        title: 'User Not Found',
+        page: 'error',
+        message: 'The requested user profile could not be found.',
+        error: { status: 404 },
+        user: req.user || null
+      });
+    }
+
+    res.render('layout', {
+      title: `${profileUser.email} - User Profile - DocExtract`,
+      page: 'user-profile',
+      profileUser: profileUser.toObject(),
+      isOwnProfile: false,
+      user: req.user
+    });
+  } catch (error) {
+    console.error('Error loading user profile:', error);
+    res.status(500).render('layout', {
+      title: 'Server Error',
+      page: 'error',
+      message: 'An error occurred while loading the user profile.',
+      error: { status: 500 },
+      user: req.user || null
+    });
+  }
 });
 
 

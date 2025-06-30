@@ -50,6 +50,7 @@
     "test:ui": "jest ui.test.ts --detectOpenHandles",
     "test:all": "npm run test:unit && npm run test:ui",
     "test:watch": "jest --watch --detectOpenHandles",
-    "seed": "ts-node src/utils/seedDatabase.ts"
+    "seed": "ts-node src/utils/seedDatabase.ts",
+    "migrate:extractions": "ts-node src/utils/migrateExtractions.ts"
   }
 }

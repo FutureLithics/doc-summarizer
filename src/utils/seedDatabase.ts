@@ -54,13 +54,72 @@ export const seedDatabase = async () => {
     // Connect to database
     await connectToDatabase();
     
-    // Seed admin user
-    await seedAdminUser();
+    // Check if superadmin already exists
+    const existingSuperAdmin = await User.findOne({ role: 'superadmin' });
     
-    console.log('Database seeding completed successfully!');
+    if (existingSuperAdmin) {
+      console.log(`✅ Superadmin already exists: ${existingSuperAdmin.email}`);
+    } else {
+      // Create superadmin user
+      const superAdmin = new User({
+        email: 'superadmin@docextract.com',
+        password: 'superadmin123',
+        role: 'superadmin'
+      });
+
+      await superAdmin.save();
+      console.log('✅ Created superadmin user: superadmin@docextract.com');
+      console.log('   Default password: superadmin123');
+      console.log('   ⚠️  Change password after first login!');
+    }
+
+    // Check if admin already exists
+    const existingAdmin = await User.findOne({ role: 'admin' });
+    
+    if (existingAdmin) {
+      console.log(`✅ Admin already exists: ${existingAdmin.email}`);
+    } else {
+      // Create admin user
+      const admin = new User({
+        email: 'admin@docextract.com',
+        password: 'admin123',
+        role: 'admin'
+      });
+
+      await admin.save();
+      console.log('✅ Created admin user: admin@docextract.com');
+      console.log('   Default password: admin123');
+      console.log('   ⚠️  Change password after first login!');
+    }
+
+    // Check if regular user already exists
+    const existingUser = await User.findOne({ role: 'user' });
+    
+    if (existingUser) {
+      console.log(`✅ Regular user already exists: ${existingUser.email}`);
+    } else {
+      // Create regular user
+      const user = new User({
+        email: 'user@docextract.com',
+        password: 'user123',
+        role: 'user'
+      });
+
+      await user.save();
+      console.log('✅ Created regular user: user@docextract.com');
+      console.log('   Default password: user123');
+      console.log('   ⚠️  Change password after first login!');
+    }
+
+    const userCount = await User.countDocuments();
+    console.log(`\n📊 Total users in database: ${userCount}`);
+    console.log('\n🎉 Database seeding completed successfully!');
+
   } catch (error) {
-    console.error('Database seeding failed:', error);
-    process.exit(1);
+    console.error('❌ Seeding failed:', error);
+  } finally {
+    await mongoose.connection.close();
+    console.log('Disconnected from MongoDB');
   }
 };
 
