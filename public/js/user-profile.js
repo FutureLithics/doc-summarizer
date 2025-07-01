@@ -57,7 +57,6 @@ function bindEventListeners() {
  * Bind modal event listeners
  */
 function bindModalEventListeners() {
-    console.log('bindModalEventListeners');
     const editModal = document.getElementById('edit-profile-modal');
     const closeModalBtn = document.getElementById('close-edit-modal');
     const cancelEditBtn = document.getElementById('cancel-edit');
