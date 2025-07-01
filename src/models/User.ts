@@ -46,6 +46,31 @@ userSchema.pre('save', async function (next) {
   }
 });
 
+// Hash password before updating with findOneAndUpdate, findByIdAndUpdate, updateOne, etc.
+userSchema.pre(['findOneAndUpdate', 'updateOne', 'updateMany'], async function (next) {
+  const update = this.getUpdate() as any;
+  
+  // Handle both direct password updates and $set operations
+  const passwordUpdate = update.password || (update.$set && update.$set.password);
+  
+  if (passwordUpdate) {
+    try {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(passwordUpdate, salt);
+      
+      if (update.password) {
+        update.password = hashedPassword;
+      } else if (update.$set && update.$set.password) {
+        update.$set.password = hashedPassword;
+      }
+    } catch (error) {
+      return next(error as Error);
+    }
+  }
+  
+  next();
+});
+
 // Compare password method
 userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
