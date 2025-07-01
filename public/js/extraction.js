@@ -7,6 +7,65 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+    // Modal handling for sharing
+    const shareModal = document.getElementById('shareModal');
+    const shareBtn = document.getElementById('share-btn');
+    const closeShareModal = document.getElementById('closeShareModal');
+    const cancelShare = document.getElementById('cancelShare');
+    const shareForm = document.getElementById('shareForm');
+  
+    function showShareModal() {
+      loadSharedUsers();
+      loadUsersForSharing();
+      if (shareModal) {
+        shareModal.classList.remove('hidden');
+      }
+    }
+  
+    function hideShareModal() {
+      if (shareModal) {
+        shareModal.classList.add('hidden');
+      }
+      if (shareForm) {
+        shareForm.reset();
+      }
+    }
+  
+    if (shareBtn) {
+      shareBtn.addEventListener('click', showShareModal);
+    }
+  
+    if (closeShareModal) {
+      closeShareModal.addEventListener('click', hideShareModal);
+    }
+  
+    if (cancelShare) {
+      cancelShare.addEventListener('click', hideShareModal);
+    }
+  
+    if (shareForm) {
+      shareForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const userId = formData.get('userId');
+        const extractionId = window.location.pathname.split('/').pop();
+        
+        if (extractionId && userId) {
+          shareExtraction(extractionId, userId);
+          shareForm.reset();
+        }
+      });
+    }
+  
+    // Close modal when clicking outside
+    if (shareModal) {
+      shareModal.addEventListener('click', function(e) {
+        if (e.target === shareModal) {
+          hideShareModal();
+        }
+      });
+    }
+
   // Initialize edit functionality if elements exist
   initializeEditMode();
 });
@@ -422,4 +481,123 @@ class ExtractionEditManager {
 function initializeEditMode() {
   // Initialize the edit manager
   new ExtractionEditManager();
+}
+
+// Function for loading users into the share select dropdown
+async function loadUsersForSharing() {
+  try {
+    const response = await fetch('/api/users');
+    if (response.ok) {
+      const users = await response.json();
+      const userSelect = document.getElementById('shareUserSelect');
+      
+      // Clear existing options except the first one
+      userSelect.innerHTML = '<option value="">Select a user...</option>';
+      
+      // Get current extraction data to filter out owner and already shared users
+      const extractionId = window.location.pathname.split('/').pop();
+      const extractionResponse = await fetch(`/api/extractions/${extractionId}`);
+      const extraction = await extractionResponse.json();
+      
+      // Filter out owner and already shared users
+      const availableUsers = users.filter(user => {
+        const isOwner = extraction.userId && extraction.userId._id === user._id;
+        const isAlreadyShared = extraction.sharedWith && extraction.sharedWith.some(sharedUser => sharedUser._id === user._id);
+        return !isOwner && !isAlreadyShared;
+      });
+      
+      // Add user options
+      availableUsers.forEach(user => {
+        const option = document.createElement('option');
+        option.value = user._id;
+        option.textContent = `${user.email} (${user.role})`;
+        userSelect.appendChild(option);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to load users:', error);
+  }
+}
+
+// Function for sharing extraction
+async function shareExtraction(extractionId, userId) {
+  try {
+    const response = await fetch(`/api/extractions/${extractionId}/share`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ userId })
+    });
+    
+    if (response.ok) {
+      // Refresh the shared users list and available users
+      await loadSharedUsers();
+      await loadUsersForSharing();
+      
+      // Show success message
+      const result = await response.json();
+      alert('Extraction shared successfully!');
+    } else {
+      const errorData = await response.json();
+      alert('Sharing failed: ' + (errorData.message || errorData.error || 'Unknown error'));
+    }
+  } catch (error) {
+    alert('Sharing failed: ' + error.message);
+  }
+}
+
+// Function for unsharing extraction
+async function unshareExtraction(extractionId, userId) {
+  try {
+    const response = await fetch(`/api/extractions/${extractionId}/unshare`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ userId })
+    });
+    
+    if (response.ok) {
+      // Refresh the shared users list and available users
+      await loadSharedUsers();
+      await loadUsersForSharing();
+    } else {
+      const errorData = await response.json();
+      alert('Unsharing failed: ' + (errorData.message || errorData.error || 'Unknown error'));
+    }
+  } catch (error) {
+    alert('Unsharing failed: ' + error.message);
+  }
+}
+
+// Function to load and display shared users
+async function loadSharedUsers() {
+  try {
+    const extractionId = window.location.pathname.split('/').pop();
+    const response = await fetch(`/api/extractions/${extractionId}`);
+    
+    if (response.ok) {
+      const extraction = await response.json();
+      const sharedUsersList = document.getElementById('sharedUsersList');
+      
+      if (extraction.sharedWith && extraction.sharedWith.length > 0) {
+        sharedUsersList.innerHTML = extraction.sharedWith.map(user => `
+          <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+            <span class="text-sm text-gray-700">${user.email} (${user.role})</span>
+            <button 
+              class="text-red-600 hover:text-red-800 text-sm"
+              onclick="unshareExtraction('${extractionId}', '${user._id}')"
+            >
+              Remove
+            </button>
+          </div>
+        `).join('');
+      } else {
+        sharedUsersList.innerHTML = '<p class="text-sm text-gray-500 italic">Not shared with anyone yet.</p>';
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load shared users:', error);
+  }
 }

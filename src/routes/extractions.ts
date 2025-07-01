@@ -153,60 +153,6 @@ const processDocument = async (buffer: Buffer, mimetype: string, fileName: strin
 
 /**
  * @swagger
- * /extractions:
- *   get:
- *     tags: [Extractions]
- *     summary: Get list of available extractions
- *     responses:
- *       200:
- *         description: List of extractions
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id:
- *                     type: string
- *                   status:
- *                     type: string
- *                   createdAt:
- *                     type: string
- *                   fileName:
- *                     type: string
- *                   documentType:
- *                     type: string
- *                   summary:
- *                     type: string
- */
-const getExtractions = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const userId = (req as any).user?.id;
-    const userRole = (req as any).user?.role;
-
-    if (!userId) {
-      res.status(401).json({ message: 'User authentication required' });
-      return;
-    }
-
-    // Admins and superadmins can see all extractions, regular users only see their own
-    const filter = (userRole === 'admin' || userRole === 'superadmin') ? {} : { userId };
-    
-    const extractions = await Extraction.find(filter)
-      .populate('userId', 'email role')
-      .lean()
-      .select('-originalText')
-      .sort({ createdAt: -1 });
-    
-    res.json(extractions);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch extractions' });
-  }
-};
-
-/**
- * @swagger
  * /extractions/upload:
  *   post:
  *     tags: [Extractions]
@@ -324,79 +270,6 @@ const uploadDocument = async (req: Request, res: Response): Promise<void> => {
 /**
  * @swagger
  * /extractions/{id}:
- *   get:
- *     tags: [Extractions]
- *     summary: Get extraction by ID
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Extraction ID
- *     responses:
- *       200:
- *         description: Extraction details
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id:
- *                   type: string
- *                 status:
- *                   type: string
- *                 createdAt:
- *                   type: string
- *                 fileName:
- *                   type: string
- *                 documentType:
- *                   type: string
- *                 summary:
- *                   type: string
- *       404:
- *         description: Extraction not found
- */
-const getExtractionById = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const userId = (req as any).user?.id;
-    const userRole = (req as any).user?.role;
-    
-    if (!userId) {
-      res.status(401).json({ message: 'User authentication required' });
-      return;
-    }
-
-    // Check if ID is valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(404).json({ message: 'Extraction not found' });
-      return;
-    }
-
-    // Build query filter - admins and superadmins can access any extraction, users only their own
-    const filter: any = { _id: id };
-    if (userRole !== 'admin' && userRole !== 'superadmin') {
-      filter.userId = userId;
-    }
-
-    const extraction = await Extraction.findOne(filter)
-      .populate('userId', 'email role')
-      .lean();
-    
-    if (extraction) {
-      res.json(extraction);
-    } else {
-      res.status(404).json({ message: 'Extraction not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch extraction' });
-  }
-};
-
-/**
- * @swagger
- * /extractions/{id}:
  *   delete:
  *     tags: [Extractions]
  *     summary: Delete extraction by ID
@@ -455,108 +328,6 @@ const deleteExtraction = async (req: Request, res: Response): Promise<void> => {
     }
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete extraction' });
-  }
-};
-
-/**
- * @swagger
- * /extractions/{id}:
- *   put:
- *     tags: [Extractions]
- *     summary: Update extraction by ID
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Extraction ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               fileName:
- *                 type: string
- *               summary:
- *                 type: string
- *     responses:
- *       200:
- *         description: Extraction updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: Extraction updated successfully
- *       404:
- *         description: Extraction not found
- *       500:
- *         description: Failed to update extraction
- */
-const updateExtraction = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const { fileName, summary } = req.body;
-    const userId = (req as any).user?.id;
-    const userRole = (req as any).user?.role;
-    
-    if (!userId) {
-      res.status(401).json({ message: 'User authentication required' });
-      return;
-    }
-
-    // Check if ID is valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(404).json({ message: 'Extraction not found' });
-      return;
-    }
-
-    // Validate fileName if provided
-    if (fileName !== undefined && (!fileName || fileName.trim() === '')) {
-      res.status(400).json({ message: 'File name cannot be empty' });
-      return;
-    }
-
-    if (fileName && fileName.trim().length > 255) {
-      res.status(400).json({ message: 'File name is too long (max 255 characters)' });
-      return;
-    }
-
-    const updateData: any = { updatedAt: new Date() };
-    
-    if (fileName !== undefined) {
-      updateData.fileName = fileName.trim();
-    }
-    
-    if (summary !== undefined) {
-      updateData.summary = summary.trim();
-    }
-
-    // Build query filter - admins and superadmins can update any extraction, users only their own
-    const filter: any = { _id: id };
-    if (userRole !== 'admin' && userRole !== 'superadmin') {
-      filter.userId = userId;
-    }
-
-    const result = await Extraction.findOneAndUpdate(
-      filter, 
-      updateData, 
-      { new: true, runValidators: true }
-    ).lean();
-    
-    if (result) {
-      res.json({ message: 'Extraction updated successfully', extraction: result });
-    } else {
-      res.status(404).json({ message: 'Extraction not found' });
-    }
-  } catch (error) {
-    console.error('Error updating extraction:', error);
-    res.status(500).json({ message: 'Failed to update extraction' });
   }
 };
 
@@ -644,11 +415,369 @@ const reassignExtraction = async (req: Request, res: Response): Promise<void> =>
     res.status(500).json({ message: 'Failed to reassign extraction' });
   }
 };
+/**
+ * @swagger
+ * /extractions/{id}/share:
+ *   post:
+ *     tags: [Extractions]
+ *     summary: Share extraction with another user
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Extraction ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: User ID to share with
+ *     responses:
+ *       200:
+ *         description: Extraction shared successfully
+ *       400:
+ *         description: Invalid user ID or already shared
+ *       403:
+ *         description: Only owner can share extraction
+ *       404:
+ *         description: Extraction or user not found
+ */
+const shareExtraction = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { userId: shareWithUserId } = req.body;
+    const currentUserId = (req as any).user?.id;
+
+    if (!currentUserId) {
+      res.status(401).json({ message: 'User authentication required' });
+      return;
+    }
+
+    if (!shareWithUserId) {
+      res.status(400).json({ message: 'User ID is required' });
+      return;
+    }
+
+    // Check if extraction ID is valid
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    // Check if share user ID is valid
+    if (!mongoose.Types.ObjectId.isValid(shareWithUserId)) {
+      res.status(400).json({ message: 'Invalid user ID' });
+      return;
+    }
+
+    // Find the extraction and verify ownership
+    const extraction = await Extraction.findById(id);
+    if (!extraction) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    // Only owner can share
+    if (extraction.userId.toString() !== currentUserId) {
+      res.status(403).json({ message: 'Only the owner can share this extraction' });
+      return;
+    }
+
+    // Verify the user to share with exists
+    const User = (await import('../models/User')).default;
+    const shareWithUser = await User.findById(shareWithUserId);
+    if (!shareWithUser) {
+      res.status(404).json({ message: 'User to share with not found' });
+      return;
+    }
+
+    // Check if already shared with this user
+    if (extraction.sharedWith.includes(shareWithUserId)) {
+      res.status(400).json({ message: 'Extraction already shared with this user' });
+      return;
+    }
+
+    // Add user to shared list
+    extraction.sharedWith.push(shareWithUserId);
+    extraction.updatedAt = new Date();
+    await extraction.save();
+
+    // Return updated extraction with populated shared users
+    const updatedExtraction = await Extraction.findById(id)
+      .populate('userId', 'email role')
+      .populate('sharedWith', 'email role');
+
+    res.json({ 
+      message: 'Extraction shared successfully',
+      extraction: updatedExtraction 
+    });
+  } catch (error) {
+    console.error('Error sharing extraction:', error);
+    res.status(500).json({ message: 'Failed to share extraction' });
+  }
+};
+
+/**
+ * @swagger
+ * /extractions/{id}/unshare:
+ *   delete:
+ *     tags: [Extractions]
+ *     summary: Remove user from shared extraction
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Extraction ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: User ID to remove from sharing
+ *     responses:
+ *       200:
+ *         description: User removed from sharing successfully
+ *       403:
+ *         description: Only owner can manage sharing
+ *       404:
+ *         description: Extraction not found
+ */
+const unshareExtraction = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { userId: unshareUserId } = req.body;
+    const currentUserId = (req as any).user?.id;
+
+    if (!currentUserId) {
+      res.status(401).json({ message: 'User authentication required' });
+      return;
+    }
+
+    if (!unshareUserId) {
+      res.status(400).json({ message: 'User ID is required' });
+      return;
+    }
+
+    // Check if extraction ID is valid
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    // Find the extraction and verify ownership
+    const extraction = await Extraction.findById(id);
+    if (!extraction) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    // Only owner can unshare
+    if (extraction.userId.toString() !== currentUserId) {
+      res.status(403).json({ message: 'Only the owner can manage sharing for this extraction' });
+      return;
+    }
+
+    // Remove user from shared list
+    extraction.sharedWith = extraction.sharedWith.filter(
+      userId => userId.toString() !== unshareUserId
+    );
+    extraction.updatedAt = new Date();
+    await extraction.save();
+
+    // Return updated extraction with populated shared users
+    const updatedExtraction = await Extraction.findById(id)
+      .populate('userId', 'email role')
+      .populate('sharedWith', 'email role');
+
+    res.json({ 
+      message: 'User removed from sharing successfully',
+      extraction: updatedExtraction 
+    });
+  } catch (error) {
+    console.error('Error unsharing extraction:', error);
+    res.status(500).json({ message: 'Failed to unshare extraction' });
+  }
+};
+
+// Update the getExtractions function to include shared extractions
+const getExtractions = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
+
+    if (!userId) {
+      res.status(401).json({ message: 'User authentication required' });
+      return;
+    }
+
+    let filter: any;
+    
+    if (userRole === 'admin' || userRole === 'superadmin') {
+      // Admins and superadmins can see all extractions
+      filter = {};
+    } else {
+      // Regular users see their own extractions and ones shared with them
+      filter = {
+        $or: [
+          { userId },
+          { sharedWith: userId }
+        ]
+      };
+    }
+    
+    const extractions = await Extraction.find(filter)
+      .populate('userId', 'email role')
+      .populate('sharedWith', 'email role')
+      .lean()
+      .select('-originalText')
+      .sort({ createdAt: -1 });
+    
+    res.json(extractions);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch extractions' });
+  }
+};
+
+// Update the getExtractionById function to include shared access
+const getExtractionById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
+    
+    if (!userId) {
+      res.status(401).json({ message: 'User authentication required' });
+      return;
+    }
+
+    // Check if ID is valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    let filter: any;
+    
+    if (userRole === 'admin' || userRole === 'superadmin') {
+      // Admins and superadmins can access any extraction
+      filter = { _id: id };
+    } else {
+      // Regular users can access their own extractions or ones shared with them
+      filter = {
+        _id: id,
+        $or: [
+          { userId },
+          { sharedWith: userId }
+        ]
+      };
+    }
+
+    const extraction = await Extraction.findOne(filter)
+      .populate('userId', 'email role')
+      .populate('sharedWith', 'email role')
+      .lean();
+    
+    if (extraction) {
+      res.json(extraction);
+    } else {
+      res.status(404).json({ message: 'Extraction not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch extraction' });
+  }
+};
+
+// Update the updateExtraction function to include shared access
+const updateExtraction = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { fileName, summary } = req.body;
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
+    
+    if (!userId) {
+      res.status(401).json({ message: 'User authentication required' });
+      return;
+    }
+
+    // Check if ID is valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
+    }
+
+    // Validate fileName if provided
+    if (fileName !== undefined && (!fileName || fileName.trim() === '')) {
+      res.status(400).json({ message: 'File name cannot be empty' });
+      return;
+    }
+
+    if (fileName && fileName.trim().length > 255) {
+      res.status(400).json({ message: 'File name is too long (max 255 characters)' });
+      return;
+    }
+
+    const updateData: any = { updatedAt: new Date() };
+    
+    if (fileName !== undefined) {
+      updateData.fileName = fileName.trim();
+    }
+    
+    if (summary !== undefined) {
+      updateData.summary = summary.trim();
+    }
+
+    let filter: any;
+    
+    if (userRole === 'admin' || userRole === 'superadmin') {
+      // Admins and superadmins can update any extraction
+      filter = { _id: id };
+    } else {
+      // Regular users can update their own extractions or ones shared with them
+      filter = {
+        _id: id,
+        $or: [
+          { userId },
+          { sharedWith: userId }
+        ]
+      };
+    }
+
+    const result = await Extraction.findOneAndUpdate(
+      filter, 
+      updateData, 
+      { new: true, runValidators: true }
+    ).lean();
+    
+    if (result) {
+      res.json({ message: 'Extraction updated successfully', extraction: result });
+    } else {
+      res.status(404).json({ message: 'Extraction not found' });
+    }
+  } catch (error) {
+    console.error('Error updating extraction:', error);
+    res.status(500).json({ message: 'Failed to update extraction' });
+  }
+};
 
 router.get('/', requireAuth as any, getExtractions);
 router.post('/upload', requireAuth as any, uploadMiddleware, uploadDocument);
 router.put('/:id', requireAuth as any, updateExtraction);
 router.put('/:id/reassign', requireSuperAdmin as any, reassignExtraction);
+router.post('/:id/share', requireAuth as any, shareExtraction);
+router.delete('/:id/unshare', requireAuth as any, unshareExtraction);
 router.get('/:id', requireAuth as any, getExtractionById);
 router.delete('/:id', requireAuth as any, deleteExtraction);
 

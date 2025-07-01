@@ -1,13 +1,16 @@
+// src/models/Extraction.ts
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IExtraction extends Document {
   userId: mongoose.Types.ObjectId;
+  sharedWith: mongoose.Types.ObjectId[];
   status: 'completed' | 'processing' | 'failed';
   fileName: string;
   documentType: string;
   summary?: string;
   originalText?: string;
   createdAt: string;
+  updatedAt?: Date;
 }
 
 const ExtractionSchema: Schema = new Schema({
@@ -16,6 +19,10 @@ const ExtractionSchema: Schema = new Schema({
     ref: 'User',
     required: true
   },
+  sharedWith: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   status: {
     type: String,
     enum: ['completed', 'processing', 'failed'],
@@ -34,6 +41,10 @@ const ExtractionSchema: Schema = new Schema({
   createdAt: {
     type: String,
     default: () => new Date().toISOString()
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 }, {
   toJSON: {
@@ -46,4 +57,4 @@ const ExtractionSchema: Schema = new Schema({
   }
 });
 
-export default mongoose.model<IExtraction>('Extraction', ExtractionSchema); 
+export default mongoose.model<IExtraction>('Extraction', ExtractionSchema);
