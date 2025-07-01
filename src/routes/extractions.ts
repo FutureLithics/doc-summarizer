@@ -415,6 +415,56 @@ const reassignExtraction = async (req: Request, res: Response): Promise<void> =>
     res.status(500).json({ message: 'Failed to reassign extraction' });
   }
 };
+// Helper function to validate extraction access and ownership
+const validateExtractionAccess = async (
+  extractionId: string,
+  currentUserId: string,
+  requireOwnership: boolean = false
+): Promise<{ extraction: any; error?: { status: number; message: string } }> => {
+  // Check if extraction ID is valid
+  if (!mongoose.Types.ObjectId.isValid(extractionId)) {
+    return { extraction: null, error: { status: 404, message: 'Extraction not found' } };
+  }
+
+  // Find the extraction
+  const extraction = await Extraction.findById(extractionId);
+  if (!extraction) {
+    return { extraction: null, error: { status: 404, message: 'Extraction not found' } };
+  }
+
+  // Check ownership if required
+  if (requireOwnership && extraction.userId.toString() !== currentUserId) {
+    return { 
+      extraction: null, 
+      error: { status: 403, message: 'Only the owner can perform this action' } 
+    };
+  }
+
+  return { extraction };
+};
+
+// Helper function to get populated extraction
+const getPopulatedExtraction = async (extractionId: string) => {
+  return await Extraction.findById(extractionId)
+    .populate('userId', 'email role')
+    .populate('sharedWith', 'email role');
+};
+
+// Helper function to validate user ID and check if user exists
+const validateAndGetUser = async (userId: string) => {
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return { user: null, error: { status: 400, message: 'Invalid user ID' } };
+  }
+
+  const User = (await import('../models/User')).default;
+  const user = await User.findById(userId);
+  if (!user) {
+    return { user: null, error: { status: 404, message: 'User not found' } };
+  }
+
+  return { user };
+};
+
 /**
  * @swagger
  * /extractions/{id}/share:
@@ -454,46 +504,29 @@ const shareExtraction = async (req: Request, res: Response): Promise<void> => {
     const { userId: shareWithUserId } = req.body;
     const currentUserId = (req as any).user?.id;
 
+    // Validate authentication
     if (!currentUserId) {
       res.status(401).json({ message: 'User authentication required' });
       return;
     }
 
+    // Validate request body
     if (!shareWithUserId) {
       res.status(400).json({ message: 'User ID is required' });
       return;
     }
 
-    // Check if extraction ID is valid
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(404).json({ message: 'Extraction not found' });
+    // Validate extraction and ownership
+    const { extraction, error: extractionError } = await validateExtractionAccess(id, currentUserId, true);
+    if (extractionError) {
+      res.status(extractionError.status).json({ message: extractionError.message });
       return;
     }
 
-    // Check if share user ID is valid
-    if (!mongoose.Types.ObjectId.isValid(shareWithUserId)) {
-      res.status(400).json({ message: 'Invalid user ID' });
-      return;
-    }
-
-    // Find the extraction and verify ownership
-    const extraction = await Extraction.findById(id);
-    if (!extraction) {
-      res.status(404).json({ message: 'Extraction not found' });
-      return;
-    }
-
-    // Only owner can share
-    if (extraction.userId.toString() !== currentUserId) {
-      res.status(403).json({ message: 'Only the owner can share this extraction' });
-      return;
-    }
-
-    // Verify the user to share with exists
-    const User = (await import('../models/User')).default;
-    const shareWithUser = await User.findById(shareWithUserId);
-    if (!shareWithUser) {
-      res.status(404).json({ message: 'User to share with not found' });
+    // Validate user to share with
+    const { user: shareWithUser, error: userError } = await validateAndGetUser(shareWithUserId);
+    if (userError) {
+      res.status(userError.status).json({ message: userError.message });
       return;
     }
 
@@ -508,10 +541,8 @@ const shareExtraction = async (req: Request, res: Response): Promise<void> => {
     extraction.updatedAt = new Date();
     await extraction.save();
 
-    // Return updated extraction with populated shared users
-    const updatedExtraction = await Extraction.findById(id)
-      .populate('userId', 'email role')
-      .populate('sharedWith', 'email role');
+    // Return updated extraction with populated data
+    const updatedExtraction = await getPopulatedExtraction(id);
 
     res.json({ 
       message: 'Extraction shared successfully',
@@ -560,46 +591,34 @@ const unshareExtraction = async (req: Request, res: Response): Promise<void> => 
     const { userId: unshareUserId } = req.body;
     const currentUserId = (req as any).user?.id;
 
+    // Validate authentication
     if (!currentUserId) {
       res.status(401).json({ message: 'User authentication required' });
       return;
     }
 
+    // Validate request body
     if (!unshareUserId) {
       res.status(400).json({ message: 'User ID is required' });
       return;
     }
 
-    // Check if extraction ID is valid
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(404).json({ message: 'Extraction not found' });
-      return;
-    }
-
-    // Find the extraction and verify ownership
-    const extraction = await Extraction.findById(id);
-    if (!extraction) {
-      res.status(404).json({ message: 'Extraction not found' });
-      return;
-    }
-
-    // Only owner can unshare
-    if (extraction.userId.toString() !== currentUserId) {
-      res.status(403).json({ message: 'Only the owner can manage sharing for this extraction' });
+    // Validate extraction and ownership
+    const { extraction, error: extractionError } = await validateExtractionAccess(id, currentUserId, true);
+    if (extractionError) {
+      res.status(extractionError.status).json({ message: extractionError.message });
       return;
     }
 
     // Remove user from shared list
     extraction.sharedWith = extraction.sharedWith.filter(
-      userId => userId.toString() !== unshareUserId
+      (userId: mongoose.Types.ObjectId) => userId.toString() !== unshareUserId
     );
     extraction.updatedAt = new Date();
     await extraction.save();
 
-    // Return updated extraction with populated shared users
-    const updatedExtraction = await Extraction.findById(id)
-      .populate('userId', 'email role')
-      .populate('sharedWith', 'email role');
+    // Return updated extraction with populated data
+    const updatedExtraction = await getPopulatedExtraction(id);
 
     res.json({ 
       message: 'User removed from sharing successfully',

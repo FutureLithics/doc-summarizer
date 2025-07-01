@@ -492,7 +492,7 @@ async function loadUsersForSharing() {
       const userSelect = document.getElementById('shareUserSelect');
       
       // Clear existing options except the first one
-      userSelect.innerHTML = '<option value="">Select a user...</option>';
+      userSelect.innerHTML = '<option value="">Choose a user to share with...</option>';
       
       // Get current extraction data to filter out owner and already shared users
       const extractionId = window.location.pathname.split('/').pop();
@@ -506,17 +506,91 @@ async function loadUsersForSharing() {
         return !isOwner && !isAlreadyShared;
       });
       
-      // Add user options
+      // Add user options with better formatting
       availableUsers.forEach(user => {
         const option = document.createElement('option');
         option.value = user._id;
-        option.textContent = `${user.email} (${user.role})`;
+        const roleEmoji = user.role === 'superadmin' ? '🔥' : user.role === 'admin' ? '👑' : '👤';
+        option.textContent = `${roleEmoji} ${user.email} (${user.role})`;
         userSelect.appendChild(option);
       });
+
+      // Update placeholder if no users available
+      if (availableUsers.length === 0) {
+        userSelect.innerHTML = '<option value="">No additional users available to share with</option>';
+      }
     }
   } catch (error) {
     console.error('Failed to load users:', error);
+    const userSelect = document.getElementById('shareUserSelect');
+    if (userSelect) {
+      userSelect.innerHTML = '<option value="">Error loading users - please refresh</option>';
+    }
   }
+}
+
+// Helper function to show toast notifications
+function showToast(message, type = 'success') {
+  // Remove existing toasts
+  const existingToasts = document.querySelectorAll('.toast-notification');
+  existingToasts.forEach(toast => toast.remove());
+
+  const toast = document.createElement('div');
+  toast.className = `toast-notification fixed top-4 right-4 max-w-sm px-4 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 ease-out`;
+  
+  const bgClasses = {
+    'success': 'bg-green-500 text-white',
+    'error': 'bg-red-500 text-white',
+    'info': 'bg-blue-500 text-white'
+  };
+  
+  const icons = {
+    'success': '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>',
+    'error': '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>',
+    'info': '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+  };
+
+  toast.className += ` ${bgClasses[type] || bgClasses['info']}`;
+  toast.innerHTML = `
+    <div class="flex items-center space-x-3">
+      <div class="flex-shrink-0">${icons[type] || icons['info']}</div>
+      <div class="flex-1">
+        <p class="text-sm font-medium">${message}</p>
+      </div>
+      <button class="toast-close-btn flex-shrink-0 ml-2 hover:opacity-75">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(toast);
+
+  // Add event listener for close button
+  const closeBtn = toast.querySelector('.toast-close-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      toast.remove();
+    });
+  }
+
+  // Animate in
+  setTimeout(() => {
+    toast.style.transform = 'translateX(0)';
+  }, 100);
+
+  // Auto remove after delay
+  const delay = type === 'error' ? 5000 : 3000;
+  setTimeout(() => {
+    if (document.body.contains(toast)) {
+      toast.style.transform = 'translateX(100%)';
+      toast.style.opacity = '0';
+      setTimeout(() => {
+        toast.remove();
+      }, 300);
+    }
+  }, delay);
 }
 
 // Function for sharing extraction
@@ -536,14 +610,17 @@ async function shareExtraction(extractionId, userId) {
       await loadUsersForSharing();
       
       // Show success message
-      const result = await response.json();
-      alert('Extraction shared successfully!');
+      showToast('Extraction shared successfully! 🎉', 'success');
+      
+      // Reset the form
+      const form = document.getElementById('shareForm');
+      if (form) form.reset();
     } else {
       const errorData = await response.json();
-      alert('Sharing failed: ' + (errorData.message || errorData.error || 'Unknown error'));
+      showToast('Sharing failed: ' + (errorData.message || 'Unknown error'), 'error');
     }
   } catch (error) {
-    alert('Sharing failed: ' + error.message);
+    showToast('Sharing failed: ' + error.message, 'error');
   }
 }
 
@@ -562,12 +639,14 @@ async function unshareExtraction(extractionId, userId) {
       // Refresh the shared users list and available users
       await loadSharedUsers();
       await loadUsersForSharing();
+      
+      showToast('User access removed successfully', 'success');
     } else {
       const errorData = await response.json();
-      alert('Unsharing failed: ' + (errorData.message || errorData.error || 'Unknown error'));
+      showToast('Failed to remove access: ' + (errorData.message || 'Unknown error'), 'error');
     }
   } catch (error) {
-    alert('Unsharing failed: ' + error.message);
+    showToast('Failed to remove access: ' + error.message, 'error');
   }
 }
 
@@ -582,22 +661,94 @@ async function loadSharedUsers() {
       const sharedUsersList = document.getElementById('sharedUsersList');
       
       if (extraction.sharedWith && extraction.sharedWith.length > 0) {
+        // Helper function to get role badge
+        const getRoleBadge = (role) => {
+          const badges = {
+            'superadmin': '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">🔥 Super Admin</span>',
+            'admin': '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">👑 Admin</span>',
+            'user': '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">👤 User</span>'
+          };
+          return badges[role] || badges['user'];
+        };
+
+        // Helper function to generate avatar initials
+        const getAvatarInitials = (email) => {
+          return email.split('@')[0].substring(0, 2).toUpperCase();
+        };
+
+        // Helper function to generate avatar color based on email
+        const getAvatarColor = (email) => {
+          const colors = [
+            'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 
+            'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500'
+          ];
+          const hash = email.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          return colors[hash % colors.length];
+        };
+
         sharedUsersList.innerHTML = extraction.sharedWith.map(user => `
-          <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
-            <span class="text-sm text-gray-700">${user.email} (${user.role})</span>
+          <div class="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-all duration-200">
+            <div class="flex items-center space-x-3">
+              <div class="flex-shrink-0 w-8 h-8 ${getAvatarColor(user.email)} rounded-full flex items-center justify-center">
+                <span class="text-xs font-medium text-white">${getAvatarInitials(user.email)}</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">${user.email}</p>
+                <div class="mt-1">${getRoleBadge(user.role)}</div>
+              </div>
+            </div>
             <button 
-              class="text-red-600 hover:text-red-800 text-sm"
-              onclick="unshareExtraction('${extractionId}', '${user._id}')"
+              class="remove-share-btn flex-shrink-0 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 group"
+              data-user-id="${user._id}"
+              data-extraction-id="${extractionId}"
+              title="Remove access"
             >
-              Remove
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
             </button>
           </div>
         `).join('');
+
+        // Add event listeners for remove buttons
+        const removeButtons = sharedUsersList.querySelectorAll('.remove-share-btn');
+        removeButtons.forEach(button => {
+          button.addEventListener('click', function() {
+            console.log('Remove share button clicked'); // Debug log
+            const userId = this.getAttribute('data-user-id');
+            const extractionId = this.getAttribute('data-extraction-id');
+            if (userId && extractionId) {
+              unshareExtraction(extractionId, userId);
+            } else {
+              console.error('Missing userId or extractionId for unshare operation');
+            }
+          });
+        });
+        
+        console.log(`Added ${removeButtons.length} event listeners for remove buttons`); // Debug log
       } else {
-        sharedUsersList.innerHTML = '<p class="text-sm text-gray-500 italic">Not shared with anyone yet.</p>';
+        sharedUsersList.innerHTML = `
+          <div class="text-center py-8">
+            <svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+            </svg>
+            <p class="mt-2 text-sm text-gray-500">Not shared with anyone yet</p>
+            <p class="text-xs text-gray-400">Add collaborators below to get started</p>
+          </div>
+        `;
       }
     }
   } catch (error) {
     console.error('Failed to load shared users:', error);
+    const sharedUsersList = document.getElementById('sharedUsersList');
+    sharedUsersList.innerHTML = `
+      <div class="text-center py-8">
+        <svg class="mx-auto h-12 w-12 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <p class="mt-2 text-sm text-red-600">Failed to load shared users</p>
+        <p class="text-xs text-red-400">Please try refreshing the page</p>
+      </div>
+    `;
   }
 }
