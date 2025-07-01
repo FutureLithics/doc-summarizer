@@ -57,10 +57,18 @@ function bindEventListeners() {
  * Bind modal event listeners
  */
 function bindModalEventListeners() {
+    console.log('bindModalEventListeners');
     const editModal = document.getElementById('edit-profile-modal');
     const closeModalBtn = document.getElementById('close-edit-modal');
     const cancelEditBtn = document.getElementById('cancel-edit');
     const editForm = document.getElementById('edit-profile-form');
+
+    // Change Password Modal
+    const changePasswordModal = document.getElementById('change-password-modal');
+    const closePasswordModalBtn = document.getElementById('close-password-modal');
+    const cancelPasswordBtn = document.getElementById('cancel-password');
+    const changePasswordForm = document.getElementById('change-password-form');
+    const changePasswordBtn = document.getElementById('change-password-btn');
 
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', hideEditProfileModal);
@@ -74,6 +82,23 @@ function bindModalEventListeners() {
         editForm.addEventListener('submit', handleProfileUpdate);
     }
 
+    // Change Password Modal Events
+    if (changePasswordBtn) {
+        changePasswordBtn.addEventListener('click', showChangePasswordModal);
+    }
+
+    if (closePasswordModalBtn) {
+        closePasswordModalBtn.addEventListener('click', hideChangePasswordModal);
+    }
+
+    if (cancelPasswordBtn) {
+        cancelPasswordBtn.addEventListener('click', hideChangePasswordModal);
+    }
+
+    if (changePasswordForm) {
+        changePasswordForm.addEventListener('submit', handlePasswordChange);
+    }
+
     // Close modal when clicking outside
     if (editModal) {
         editModal.addEventListener('click', (e) => {
@@ -81,6 +106,26 @@ function bindModalEventListeners() {
                 hideEditProfileModal();
             }
         });
+    }
+
+    if (changePasswordModal) {
+        changePasswordModal.addEventListener('click', (e) => {
+            if (e.target === changePasswordModal) {
+                hideChangePasswordModal();
+            }
+        });
+    }
+
+    // Real-time password validation
+    const newPasswordInput = document.getElementById('new-password-change');
+    const confirmPasswordInput = document.getElementById('confirm-password');
+    
+    if (newPasswordInput) {
+        newPasswordInput.addEventListener('input', validatePasswordStrength);
+    }
+    
+    if (confirmPasswordInput) {
+        confirmPasswordInput.addEventListener('input', validatePasswordMatch);
     }
 }
 
@@ -463,3 +508,313 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 } 
+
+/**
+ * Show change password modal
+ */
+function showChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    const errorDiv = document.getElementById('password-error');
+    
+    // Hide any existing errors
+    hidePasswordError();
+    
+    // Reset password strength indicator
+    resetPasswordStrengthIndicator();
+    
+    // Show modal
+    if (modal) {
+        modal.classList.remove('hidden');
+        
+        // Focus on current password input
+        const currentPasswordInput = document.getElementById('current-password-change');
+        if (currentPasswordInput) {
+            setTimeout(() => currentPasswordInput.focus(), 100);
+        }
+    }
+}
+
+/**
+ * Hide change password modal
+ */
+function hideChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    const form = document.getElementById('change-password-form');
+    
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    
+    if (form) {
+        form.reset();
+    }
+    
+    hidePasswordError();
+    resetPasswordStrengthIndicator();
+}
+
+/**
+ * Handle password change form submission
+ * @param {Event} event - Form submit event
+ */
+async function handlePasswordChange(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    
+    const passwordData = {
+        currentPassword: formData.get('currentPassword'),
+        newPassword: formData.get('newPassword'),
+        confirmPassword: formData.get('confirmPassword')
+    };
+    
+    // Validate required fields
+    if (!passwordData.currentPassword) {
+        showPasswordError('Current password is required');
+        return;
+    }
+    
+    if (!passwordData.newPassword) {
+        showPasswordError('New password is required');
+        return;
+    }
+    
+    if (!passwordData.confirmPassword) {
+        showPasswordError('Please confirm your new password');
+        return;
+    }
+    
+    // Validate password strength
+    const strengthValidation = validatePasswordComplexity(passwordData.newPassword);
+    if (!strengthValidation.isValid) {
+        showPasswordError(strengthValidation.message);
+        return;
+    }
+    
+    // Validate password match
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+        showPasswordError('New passwords do not match');
+        return;
+    }
+    
+    // Validate new password is different from current
+    if (passwordData.currentPassword === passwordData.newPassword) {
+        showPasswordError('New password must be different from current password');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/users/${window?.profileData?.userId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                currentPassword: passwordData.currentPassword,
+                newPassword: passwordData.newPassword
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        // Success - hide modal and show success message
+        hideChangePasswordModal();
+        showPasswordSuccessMessage();
+        
+    } catch (error) {
+        console.error('Failed to change password:', error);
+        showPasswordError(error.message);
+    }
+}
+
+/**
+ * Validate password complexity
+ * @param {string} password - Password to validate
+ * @returns {Object} Validation result
+ */
+function validatePasswordComplexity(password) {
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    const hasNoSpaces = !/\s/.test(password);
+    
+    if (password.length < minLength) {
+        return { isValid: false, message: `Password must be at least ${minLength} characters long` };
+    }
+    
+    if (!hasUpperCase) {
+        return { isValid: false, message: 'Password must contain at least one uppercase letter' };
+    }
+    
+    if (!hasLowerCase) {
+        return { isValid: false, message: 'Password must contain at least one lowercase letter' };
+    }
+    
+    if (!hasNumbers) {
+        return { isValid: false, message: 'Password must contain at least one number' };
+    }
+    
+    if (!hasSpecialChar) {
+        return { isValid: false, message: 'Password must contain at least one special character (!@#$%^&*(),.?":{}|<>)' };
+    }
+    
+    if (!hasNoSpaces) {
+        return { isValid: false, message: 'Password cannot contain spaces' };
+    }
+    
+    return { isValid: true, message: 'Password meets all requirements' };
+}
+
+/**
+ * Validate password strength in real-time
+ */
+function validatePasswordStrength() {
+    const passwordInput = document.getElementById('new-password-change');
+    const strengthIndicator = document.getElementById('password-strength');
+    const strengthBar = document.getElementById('strength-bar');
+    const strengthText = document.getElementById('strength-text');
+    
+    if (!passwordInput || !strengthIndicator) return;
+    
+    const password = passwordInput.value;
+    
+    if (password.length === 0) {
+        strengthIndicator.classList.add('hidden');
+        return;
+    }
+    
+    strengthIndicator.classList.remove('hidden');
+    
+    const validation = validatePasswordComplexity(password);
+    let strength = 0;
+    let strengthLabel = '';
+    let colorClass = '';
+    
+    // Calculate strength score
+    if (password.length >= 8) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[a-z]/.test(password)) strength++;
+    if (/\d/.test(password)) strength++;
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength++;
+    if (!/\s/.test(password)) strength++;
+    
+    // Determine strength level
+    if (strength <= 2) {
+        strengthLabel = 'Weak';
+        colorClass = 'bg-red-500';
+    } else if (strength <= 4) {
+        strengthLabel = 'Fair';
+        colorClass = 'bg-yellow-500';
+    } else if (strength <= 5) {
+        strengthLabel = 'Good';
+        colorClass = 'bg-blue-500';
+    } else {
+        strengthLabel = 'Strong';
+        colorClass = 'bg-green-500';
+    }
+    
+    // Update strength bar
+    const percentage = (strength / 6) * 100;
+    strengthBar.style.width = `${percentage}%`;
+    strengthBar.className = `h-2 rounded-full transition-all duration-300 ${colorClass}`;
+    strengthText.textContent = strengthLabel;
+    strengthText.className = `text-sm font-medium ${colorClass.replace('bg-', 'text-')}`;
+}
+
+/**
+ * Validate password match in real-time
+ */
+function validatePasswordMatch() {
+    const newPasswordInput = document.getElementById('new-password-change');
+    const confirmPasswordInput = document.getElementById('confirm-password');
+    const matchIndicator = document.getElementById('password-match');
+    
+    if (!newPasswordInput || !confirmPasswordInput || !matchIndicator) return;
+    
+    const newPassword = newPasswordInput.value;
+    const confirmPassword = confirmPasswordInput.value;
+    
+    if (confirmPassword.length === 0) {
+        matchIndicator.classList.add('hidden');
+        return;
+    }
+    
+    matchIndicator.classList.remove('hidden');
+    
+    if (newPassword === confirmPassword) {
+        matchIndicator.innerHTML = '<span class="text-green-600 text-sm">✓ Passwords match</span>';
+    } else {
+        matchIndicator.innerHTML = '<span class="text-red-600 text-sm">✗ Passwords do not match</span>';
+    }
+}
+
+/**
+ * Reset password strength indicator
+ */
+function resetPasswordStrengthIndicator() {
+    const strengthIndicator = document.getElementById('password-strength');
+    const matchIndicator = document.getElementById('password-match');
+    
+    if (strengthIndicator) {
+        strengthIndicator.classList.add('hidden');
+    }
+    
+    if (matchIndicator) {
+        matchIndicator.classList.add('hidden');
+    }
+}
+
+/**
+ * Show password error message
+ * @param {string} message - Error message to display
+ */
+function showPasswordError(message) {
+    const errorDiv = document.getElementById('password-error');
+    const errorText = errorDiv.querySelector('p');
+    
+    if (errorDiv && errorText) {
+        errorText.textContent = message;
+        errorDiv.classList.remove('hidden');
+    }
+}
+
+/**
+ * Hide password error message
+ */
+function hidePasswordError() {
+    const errorDiv = document.getElementById('password-error');
+    if (errorDiv) {
+        errorDiv.classList.add('hidden');
+    }
+}
+
+/**
+ * Show password success message
+ */
+function showPasswordSuccessMessage() {
+    // Create temporary success message
+    const successDiv = document.createElement('div');
+    successDiv.className = 'fixed top-4 right-4 bg-green-50 border border-green-200 rounded-md p-4 z-50';
+    successDiv.innerHTML = `
+        <div class="flex items-center">
+            <span class="text-green-600 mr-2">✓</span>
+            <p class="text-green-800 font-medium">Password changed successfully!</p>
+        </div>
+    `;
+    
+    document.body.appendChild(successDiv);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        if (successDiv.parentNode) {
+            successDiv.parentNode.removeChild(successDiv);
+        }
+    }, 3000);
+}

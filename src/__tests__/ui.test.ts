@@ -417,4 +417,89 @@ describe('UI Tests', () => {
       }
     });
   });
+
+  describe('User Profile Password Change', () => {
+    it('should display change password modal with strength indicator', async () => {
+      await page.goto(`http://localhost:${TEST_PORT}/profile`);
+      
+      // Check if change password button exists (only for own profile)
+      const changePasswordBtn = await page.$('#change-password-btn');
+      
+      if (changePasswordBtn) {
+        // Click change password button
+        await changePasswordBtn.click();
+        
+        // Check that modal appears
+        const modal = await page.$('#change-password-modal');
+        expect(modal).toBeTruthy();
+        
+        const modalVisible = await page.evaluate(() => {
+          const modal = document.getElementById('change-password-modal');
+          return modal && !modal.classList.contains('hidden');
+        });
+        expect(modalVisible).toBe(true);
+        
+        // Check form fields exist
+        const currentPasswordInput = await page.$('#current-password-change');
+        const newPasswordInput = await page.$('#new-password-change');
+        const confirmPasswordInput = await page.$('#confirm-password');
+        
+        expect(currentPasswordInput).toBeTruthy();
+        expect(newPasswordInput).toBeTruthy();
+        expect(confirmPasswordInput).toBeTruthy();
+        
+        // Check password requirements are displayed
+        const requirements = await page.$eval('.text-xs.text-gray-600', el => el.textContent);
+        expect(requirements).toContain('Password must contain:');
+        expect(requirements).toContain('At least 8 characters');
+        expect(requirements).toContain('One uppercase letter');
+        expect(requirements).toContain('One special character');
+        
+        // Test password strength indicator
+        await newPasswordInput.type('weak');
+        
+        // Wait for strength indicator to appear
+        await page.waitForSelector('#password-strength:not(.hidden)', { timeout: 1000 });
+        
+        const strengthIndicator = await page.$('#password-strength:not(.hidden)');
+        expect(strengthIndicator).toBeTruthy();
+        
+        const strengthText = await page.$eval('#strength-text', el => el.textContent);
+        expect(['Weak', 'Fair', 'Good', 'Strong']).toContain(strengthText);
+      }
+    });
+
+    it('should validate password match in real-time', async () => {
+      await page.goto(`http://localhost:${TEST_PORT}/profile`);
+      
+      const changePasswordBtn = await page.$('#change-password-btn');
+      
+      if (changePasswordBtn) {
+        await changePasswordBtn.click();
+        
+        const newPasswordInput = await page.$('#new-password-change');
+        const confirmPasswordInput = await page.$('#confirm-password');
+        
+        // Type different passwords
+        await newPasswordInput.type('StrongPass123!');
+        await confirmPasswordInput.type('DifferentPass123!');
+        
+        // Wait for match indicator to appear
+        await page.waitForSelector('#password-match:not(.hidden)', { timeout: 1000 });
+        
+        const matchIndicator = await page.$eval('#password-match', el => el.textContent);
+        expect(matchIndicator).toContain('do not match');
+        
+        // Clear and type matching passwords
+        await confirmPasswordInput.click({ clickCount: 3 }); // Select all
+        await confirmPasswordInput.type('StrongPass123!');
+        
+        // Wait for match indicator to update
+        await page.waitForTimeout(100);
+        
+        const updatedMatchIndicator = await page.$eval('#password-match', el => el.textContent);
+        expect(updatedMatchIndicator).toContain('match');
+      }
+    });
+  });
 }); 

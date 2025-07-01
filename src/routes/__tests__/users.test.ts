@@ -707,6 +707,69 @@ describe('Users Routes', () => {
     });
   });
 
+  describe('Password Change Functionality', () => {
+    it('should change password with valid current password and strong new password', async () => {
+      // Create a user
+      const user = new User({ email: 'passwordchange@test.com', password: 'oldPassword123!', role: 'user' });
+      await user.save();
+
+      // Login as the user
+      const userCookie = await createUserAndLogin('passwordchange@test.com', 'oldPassword123!', 'user');
+
+      const updateData = {
+        currentPassword: 'oldPassword123!',
+        newPassword: 'NewStrongPass123!'
+      };
+
+      const response = await request(app)
+        .put(`/api/users/${user._id}`)
+        .set('Cookie', userCookie)
+        .send(updateData);
+
+      expect(response.status).toBe(200);
+      expect(response.body.email).toBe('passwordchange@test.com');
+
+      // Verify password was actually changed by trying to login with new password
+      const loginResponse = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'passwordchange@test.com', password: 'NewStrongPass123!' });
+
+      expect(loginResponse.status).toBe(200);
+    });
+
+    it('should reject password change with weak new password', async () => {
+      // Create a user
+      const user = new User({ email: 'weakpass@test.com', password: 'oldPassword123!', role: 'user' });
+      await user.save();
+
+      // Login as the user
+      const userCookie = await createUserAndLogin('weakpass@test.com', 'oldPassword123!', 'user');
+
+      const weakPasswords = [
+        'short',           // Too short
+        'nouppercase123!', // No uppercase
+        'NOLOWERCASE123!', // No lowercase
+        'NoNumbers!',      // No numbers
+        'NoSpecialChar123', // No special characters
+        'Has Spaces123!'   // Has spaces
+      ];
+
+      for (const weakPassword of weakPasswords) {
+        const updateData = {
+          currentPassword: 'oldPassword123!',
+          newPassword: weakPassword
+        };
+
+        const response = await request(app)
+          .put(`/api/users/${user._id}`)
+          .set('Cookie', userCookie)
+          .send(updateData);
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toMatch(/(must be at least|must contain|cannot contain)/i);
+      }
+    });
+  });
 
   
 }); 

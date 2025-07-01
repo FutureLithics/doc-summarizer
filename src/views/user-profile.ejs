@@ -37,6 +37,10 @@
                     <span class="mr-2">✏️</span>
                     Edit Profile
                 </button>
+                <button id="change-password-btn" class="btn-secondary inline-flex items-center">
+                    <span class="mr-2">🔒</span>
+                    Change Password
+                </button>
             <% } %>
             
             <% if (!isOwnProfile && (user.role === 'admin' || user.role === 'superadmin')) { %>
@@ -298,6 +302,106 @@
         </form>
     </div>
 </div>
+<% } %>
+
+<!-- Change Password Modal (for own profile) -->
+<% if (isOwnProfile) { %>
+    <div id="change-password-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="relative bg-white p-6 border w-full max-w-md mx-4 rounded-lg">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold">Change Password</h3>
+                <button id="close-password-modal" class="text-gray-400 hover:text-gray-600">
+                    <span class="sr-only">Close</span>
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <form id="change-password-form">
+                <div class="mb-4">
+                    <label for="current-password-change" class="block text-sm font-medium text-gray-700 mb-2">
+                        Current Password
+                    </label>
+                    <input 
+                        type="password" 
+                        id="current-password-change" 
+                        name="currentPassword" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="new-password-change" class="block text-sm font-medium text-gray-700 mb-2">
+                        New Password
+                    </label>
+                    <input 
+                        type="password" 
+                        id="new-password-change" 
+                        name="newPassword" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required>
+                    
+                    <!-- Password Strength Indicator -->
+                    <div id="password-strength" class="hidden mt-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs text-gray-600">Password Strength:</span>
+                            <span id="strength-text" class="text-xs font-medium"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="strength-bar" class="h-2 rounded-full transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Password Requirements -->
+                    <div class="mt-2 text-xs text-gray-600">
+                        <p>Password must contain:</p>
+                        <ul class="list-disc list-inside ml-2 space-y-1">
+                            <li>At least 8 characters</li>
+                            <li>One uppercase letter</li>
+                            <li>One lowercase letter</li>
+                            <li>One number</li>
+                            <li>One special character (!@#$%^&*(),.?":{}|<>)</li>
+                            <li>No spaces</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="confirm-password" class="block text-sm font-medium text-gray-700 mb-2">
+                        Confirm New Password
+                    </label>
+                    <input 
+                        type="password" 
+                        id="confirm-password" 
+                        name="confirmPassword" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required>
+                    
+                    <!-- Password Match Indicator -->
+                    <div id="password-match" class="hidden mt-1"></div>
+                </div>
+                
+                <div id="password-error" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p class="text-red-600 text-sm"></p>
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button 
+                        type="button" 
+                        id="cancel-password"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 border border-gray-300 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                        Cancel
+                    </button>
+                    <button 
+                        type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        Change Password
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 <% } %>
 
 <script src="/js/user-profile.js"></script> 
