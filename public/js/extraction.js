@@ -486,7 +486,7 @@ function initializeEditMode() {
 // Function for loading users into the share select dropdown
 async function loadUsersForSharing() {
   try {
-    const response = await fetch('/api/users');
+    const response = await fetch('/api/users?forSharing=true');
     if (response.ok) {
       const users = await response.json();
       const userSelect = document.getElementById('shareUserSelect');
@@ -519,6 +519,8 @@ async function loadUsersForSharing() {
       if (availableUsers.length === 0) {
         userSelect.innerHTML = '<option value="">No additional users available to share with</option>';
       }
+    } else {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
   } catch (error) {
     console.error('Failed to load users:', error);

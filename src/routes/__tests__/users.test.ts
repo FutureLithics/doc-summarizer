@@ -172,7 +172,7 @@ describe('Users Routes', () => {
         .set('Cookie', userCookie);
 
       expect(response.status).toBe(403);
-      expect(response.body).toHaveProperty('error', 'Admin access required');
+      expect(response.body).toHaveProperty('error', 'Admin access required for full user list. Use ?forSharing=true for sharing purposes.');
     });
 
     it('should return 401 for unauthenticated requests', async () => {
@@ -232,6 +232,31 @@ describe('Users Routes', () => {
 
       // Reconnect for cleanup
       await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/test-users-db');
+    });
+
+    it('should allow regular users to get user list for sharing', async () => {
+      // Create some test users
+      await User.create([
+        { email: 'user1@test.com', password: 'password123', role: 'user' },
+        { email: 'user2@test.com', password: 'password123', role: 'admin' }
+      ]);
+
+      const userCookie = await createRegularUserAndLogin();
+
+      const response = await request(app)
+        .get('/api/users?forSharing=true')
+        .set('Cookie', userCookie);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toBeInstanceOf(Array);
+      expect(response.body.length).toBeGreaterThan(0);
+      
+      // Should only include limited fields for sharing
+      const user = response.body[0];
+      expect(user).toHaveProperty('_id');
+      expect(user).toHaveProperty('email');
+      expect(user).toHaveProperty('role');
+      expect(user).not.toHaveProperty('createdAt');
     });
   });
 

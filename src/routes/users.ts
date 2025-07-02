@@ -76,12 +76,27 @@ const router = Router();
  *             example:
  *               error: "Failed to fetch users"
  */
-// Get all users (admin only)
-router.get('/', requireAuth as any, requireAdmin as any, async (req: any, res: Response) => {
+// Get all users - admin gets full list, regular users get limited list for sharing
+router.get('/', requireAuth as any, async (req: any, res: Response) => {
   try {
     const User = (await import('../models/User')).default;
-    const users = await User.find({}, 'email role createdAt').sort({ createdAt: -1 });
-    res.json(users);
+    const userRole = req.user?.role;
+    const { forSharing } = req.query;
+
+    if (userRole === 'admin' || userRole === 'superadmin') {
+      // Admins get full user list with all details
+      const users = await User.find({}, 'email role createdAt').sort({ createdAt: -1 });
+      res.json(users);
+    } else if (forSharing === 'true') {
+      // Regular users get limited list for sharing purposes only
+      const users = await User.find({}, '_id email role').sort({ email: 1 });
+      res.json(users);
+    } else {
+      // Regular users trying to access full user list without sharing context
+      res.status(403).json({ 
+        error: 'Admin access required for full user list. Use ?forSharing=true for sharing purposes.' 
+      });
+    }
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });

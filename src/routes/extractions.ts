@@ -638,17 +638,32 @@ const unshareExtraction = async (req: Request, res: Response): Promise<void> => 
 
 // Update the getExtractions function to include shared extractions with proper indicators
 const getExtractions = async (req: Request, res: Response): Promise<void> => {
+  let filter: any;
   try {
     const userId = (req as any).user?.id;
     const userRole = (req as any).user?.role;
-    const { userId: filterUserId, includeShared = 'true' } = req.query;
+    const { userId: filterUserId, includeShared = 'true', limit } = req.query;
 
     if (!userId) {
       res.status(401).json({ message: 'User authentication required' });
       return;
     }
 
-    let filter: any;
+    // Validate filterUserId if provided
+    if (filterUserId && !mongoose.Types.ObjectId.isValid(filterUserId as string)) {
+      res.status(400).json({ message: 'Invalid user ID format' });
+      return;
+    }
+
+    // Parse and validate limit parameter
+    let limitNumber: number | undefined;
+    if (limit) {
+      limitNumber = parseInt(limit as string, 10);
+      if (isNaN(limitNumber) || limitNumber < 1 || limitNumber > 100) {
+        res.status(400).json({ message: 'Limit must be a number between 1 and 100' });
+        return;
+      }
+    }
     
     if (userRole === 'admin' || userRole === 'superadmin') {
       // Admins and superadmins can see all extractions
@@ -683,21 +698,58 @@ const getExtractions = async (req: Request, res: Response): Promise<void> => {
       .populate('sharedWith', 'email role')
       .lean()
       .select('-originalText')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(limitNumber || 0);
+    
+    // Safety check for empty extractions array
+    if (!extractions || !Array.isArray(extractions)) {
+      console.log('No extractions found or invalid extractions array');
+      res.json([]);
+      return;
+    }
+
+    // Validate target comparison ID
+    const targetCompareId = filterUserId || userId;
+    if (!targetCompareId) {
+      res.status(400).json({ message: 'Invalid user ID for comparison' });
+      return;
+    }
     
     // Add sharing indicators to each extraction
-    const extractionsWithSharingInfo = extractions.map(extraction => ({
-      ...extraction,
-      isOwner: extraction.userId._id.toString() === (filterUserId || userId),
-      isShared: extraction.sharedWith.some((user: any) => user._id.toString() === (filterUserId || userId)),
-      canEdit: extraction.userId._id.toString() === (filterUserId || userId) || 
-               extraction.sharedWith.some((user: any) => user._id.toString() === (filterUserId || userId)),
-      canDelete: extraction.userId._id.toString() === (filterUserId || userId) || 
-                 userRole === 'admin' || userRole === 'superadmin'
-    }));
+    const extractionsWithSharingInfo = extractions.map((extraction, index) => {
+      try {
+        // Safely handle populated fields
+        const extractionUserId = extraction.userId?._id?.toString() || extraction.userId?.toString();
+        const sharedWithUsers = extraction.sharedWith || [];
+        const compareId = targetCompareId.toString();
+        
+        return {
+          ...extraction,
+          isOwner: extractionUserId === compareId,
+          isShared: Array.isArray(sharedWithUsers) && sharedWithUsers.some((user: any) => 
+            user?._id?.toString() === compareId || user?.toString() === compareId
+          ),
+          canEdit: extractionUserId === compareId || 
+                   (Array.isArray(sharedWithUsers) && sharedWithUsers.some((user: any) => 
+                     user?._id?.toString() === compareId || user?.toString() === compareId
+                   )),
+          canDelete: extractionUserId === compareId || 
+                     userRole === 'admin' || userRole === 'superadmin'
+        };
+      } catch (mapError) {
+        console.error(`Error mapping extraction at index ${index}:`, mapError);
+        console.error('Extraction data:', JSON.stringify(extraction, null, 2));
+        throw mapError; // Re-throw to be caught by outer catch
+      }
+    });
     
+
     res.json(extractionsWithSharingInfo);
   } catch (error) {
+    console.error('Error in getExtractions:', error);
+    console.error('Filter used:', filter);
+    console.error('Request query:', req.query);
+    console.error('User info:', { id: (req as any).user?.id, role: (req as any).user?.role });
     res.status(500).json({ message: 'Failed to fetch extractions' });
   }
 };
