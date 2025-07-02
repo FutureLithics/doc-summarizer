@@ -3,8 +3,8 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    initializeProfilePage();
     getProfileData();
+    initializeProfilePage();
 });
 
 /**
@@ -129,11 +129,12 @@ function bindModalEventListeners() {
 }
 
 /**
- * Load user statistics
+ * Load user statistics including shared files
  */
 async function loadUserStatistics() {
     try {
-        const response = await fetch(`/api/extractions?userId=${window?.profileData?.userId}`);
+        // Load both owned and shared extractions for statistics
+        const response = await fetch(`/api/extractions?userId=${window?.profileData?.userId}&includeShared=true`);
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -143,8 +144,9 @@ async function loadUserStatistics() {
         
         // Calculate statistics
         const totalExtractions = extractions.length;
+        const ownedExtractions = extractions.filter(ext => ext.isOwner).length;
+        const sharedExtractions = extractions.filter(ext => ext.isShared && !ext.isOwner).length;
         const completedExtractions = extractions.filter(ext => ext.status === 'completed').length;
-        const failedExtractions = extractions.filter(ext => ext.status === 'failed').length;
         const successRate = totalExtractions > 0 
             ? Math.round((completedExtractions / totalExtractions) * 100) 
             : 0;
@@ -153,6 +155,12 @@ async function loadUserStatistics() {
         updateStatElement('total-extractions', totalExtractions);
         updateStatElement('completed-extractions', completedExtractions);
         updateStatElement('success-rate', `${successRate}%`);
+        
+        // Add shared files indicator if there are any
+        if (sharedExtractions > 0) {
+            updateStatElement('owned-extractions', ownedExtractions);
+            updateStatElement('shared-extractions', sharedExtractions);
+        }
 
     } catch (error) {
         console.error('Failed to load user statistics:', error);
@@ -187,7 +195,8 @@ async function loadRecentExtractions() {
     try {
         showExtractionsLoading();
 
-        const response = await fetch(`/api/extractions?userId=${window?.profileData?.userId}&limit=5`);
+        // Include both owned and shared extractions
+        const response = await fetch(`/api/extractions?userId=${window?.profileData?.userId}&limit=5&includeShared=true`);
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -227,7 +236,7 @@ function displayRecentExtractions(extractions) {
 }
 
 /**
- * Create an extraction list item
+ * Create an extraction list item with sharing indicators
  * @param {Object} extraction - Extraction object
  * @returns {HTMLElement} The created element
  */
@@ -248,6 +257,9 @@ function createExtractionListItem(extraction) {
         year: 'numeric'
     });
     
+    // Determine sharing status and icon
+    const sharingInfo = getSharingInfo(extraction);
+    
     item.innerHTML = `
         <div class="flex items-center justify-between">
             <div class="flex-1 min-w-0">
@@ -258,12 +270,16 @@ function createExtractionListItem(extraction) {
                         </div>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium text-gray-900 truncate">
-                            ${escapeHtml(extraction.fileName || 'Unknown file')}
-                        </p>
+                        <div class="flex items-center space-x-2">
+                            <p class="text-sm font-medium text-gray-900 truncate">
+                                ${escapeHtml(extraction.fileName || 'Unknown file')}
+                            </p>
+                            ${sharingInfo.badge}
+                        </div>
                         <p class="text-sm text-gray-500 truncate">
                             ${escapeHtml(truncatedSummary)}
                         </p>
+                        ${sharingInfo.ownerInfo}
                     </div>
                 </div>
             </div>
@@ -272,18 +288,14 @@ function createExtractionListItem(extraction) {
                     ${statusIcon} ${extraction.status}
                 </span>
                 <span class="text-sm text-gray-500">${createdDate}</span>
-                ${window?.profileData?.isOwnProfile ? `
-                    <a href="/extraction/${extraction._id}" 
-                       class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                        View →
-                    </a>
-                ` : ''}
+                ${getActionButtons(extraction)}
             </div>
         </div>
     `;
     
     return item;
 }
+
 
 /**
  * Get status class for styling
@@ -816,4 +828,62 @@ function showPasswordSuccessMessage() {
             successDiv.parentNode.removeChild(successDiv);
         }
     }, 3000);
+}
+
+/**
+ * Get action buttons based on user permissions
+ * @param {Object} extraction - Extraction object
+ * @returns {string} HTML for action buttons
+ */
+function getActionButtons(extraction) {
+    const isOwnProfile = window?.profileData?.isOwnProfile;
+    const canEdit = extraction.canEdit;
+    const canDelete = extraction.canDelete;
+    
+    if (!isOwnProfile) {
+        return '';
+    }
+    
+    let buttons = '';
+    
+    // View button - always available if user has access
+    if (canEdit) {
+        buttons += `<a href="/extraction/${extraction._id}" 
+                       class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                        View →
+                    </a>`;
+    }
+    
+    return buttons;
+}
+
+/**
+ * Get sharing information for an extraction
+ * @param {Object} extraction - Extraction object
+ * @returns {Object} Sharing info with badge and owner details
+ */
+function getSharingInfo(extraction) {
+    const isOwner = extraction.isOwner;
+    const isShared = extraction.isShared;
+    
+    let badge = '';
+    let ownerInfo = '';
+    
+    if (isShared && !isOwner) {
+        badge = `<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+            🔗 Shared
+        </span>`;
+        
+        if (extraction.userId && extraction.userId.email) {
+            ownerInfo = `<p class="text-xs text-gray-400">
+                Shared by ${escapeHtml(extraction.userId.email)}
+            </p>`;
+        }
+    } else if (isOwner && extraction.sharedWith && extraction.sharedWith.length > 0) {
+        badge = `<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+            👥 Shared with ${extraction.sharedWith.length}
+        </span>`;
+    }
+    
+    return { badge, ownerInfo };
 }

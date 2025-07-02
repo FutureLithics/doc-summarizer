@@ -60,7 +60,7 @@
     </div>
 
     <!-- User Information Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <!-- Account Info -->
         <div class="bg-white rounded-lg border border-gray-200 p-6">
             <div class="flex items-center">
@@ -82,7 +82,7 @@
             </div>
         </div>
 
-        <!-- Extractions Count -->
+        <!-- Total Extractions -->
         <div class="bg-white rounded-lg border border-gray-200 p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0">
@@ -91,23 +91,38 @@
                     </div>
                 </div>
                 <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-600">Total Extractions</p>
+                    <p class="text-sm font-medium text-gray-600">Total Files</p>
                     <p id="total-extractions" class="text-lg font-semibold text-gray-900">-</p>
                 </div>
             </div>
         </div>
 
-        <!-- Completed Extractions -->
+        <!-- Owned Extractions -->
         <div class="bg-white rounded-lg border border-gray-200 p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0">
                     <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                        <span class="text-purple-600 text-sm font-semibold">✅</span>
+                        <span class="text-purple-600 text-sm font-semibold">👤</span>
                     </div>
                 </div>
                 <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-600">Completed</p>
-                    <p id="completed-extractions" class="text-lg font-semibold text-gray-900">-</p>
+                    <p class="text-sm font-medium text-gray-600">Owned Files</p>
+                    <p id="owned-extractions" class="text-lg font-semibold text-gray-900">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shared Extractions -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                        <span class="text-orange-600 text-sm font-semibold">🔗</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Shared with Me</p>
+                    <p id="shared-extractions" class="text-lg font-semibold text-gray-900">-</p>
                 </div>
             </div>
         </div>

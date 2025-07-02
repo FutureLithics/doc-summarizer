@@ -296,6 +296,7 @@ const uploadDocument = async (req: Request, res: Response): Promise<void> => {
  *       500:
  *         description: Failed to delete extraction
  */
+// Update the deleteExtraction function to prevent shared users from deleting
 const deleteExtraction = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -313,19 +314,24 @@ const deleteExtraction = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Build query filter - admins and superadmins can delete any extraction, users only their own
-    const filter: any = { _id: id };
-    if (userRole !== 'admin' && userRole !== 'superadmin') {
-      filter.userId = userId;
+    // Find the extraction first to check ownership
+    const extraction = await Extraction.findById(id);
+    if (!extraction) {
+      res.status(404).json({ message: 'Extraction not found' });
+      return;
     }
 
-    const result = await Extraction.findOneAndDelete(filter);
+    // Check if user has permission to delete
+    const isOwner = extraction.userId.toString() === userId;
+    const isAdmin = userRole === 'admin' || userRole === 'superadmin';
     
-    if (result) {
-      res.json({ message: 'Extraction deleted successfully' });
-    } else {
-      res.status(404).json({ message: 'Extraction not found' });
+    if (!isOwner && !isAdmin) {
+      res.status(403).json({ message: 'Only the owner or administrators can delete this extraction' });
+      return;
     }
+
+    await Extraction.findByIdAndDelete(id);
+    res.json({ message: 'Extraction deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete extraction' });
   }
@@ -630,11 +636,12 @@ const unshareExtraction = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-// Update the getExtractions function to include shared extractions
+// Update the getExtractions function to include shared extractions with proper indicators
 const getExtractions = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).user?.id;
     const userRole = (req as any).user?.role;
+    const { userId: filterUserId, includeShared = 'true' } = req.query;
 
     if (!userId) {
       res.status(401).json({ message: 'User authentication required' });
@@ -645,15 +652,30 @@ const getExtractions = async (req: Request, res: Response): Promise<void> => {
     
     if (userRole === 'admin' || userRole === 'superadmin') {
       // Admins and superadmins can see all extractions
-      filter = {};
+      if (filterUserId) {
+        // When viewing a specific user's profile, show their owned and shared extractions
+        filter = {
+          $or: [
+            { userId: filterUserId },
+            { sharedWith: filterUserId }
+          ]
+        };
+      } else {
+        filter = {};
+      }
     } else {
       // Regular users see their own extractions and ones shared with them
-      filter = {
-        $or: [
-          { userId },
-          { sharedWith: userId }
-        ]
-      };
+      const targetUserId = filterUserId || userId;
+      if (includeShared === 'true') {
+        filter = {
+          $or: [
+            { userId: targetUserId },
+            { sharedWith: targetUserId }
+          ]
+        };
+      } else {
+        filter = { userId: targetUserId };
+      }
     }
     
     const extractions = await Extraction.find(filter)
@@ -663,7 +685,18 @@ const getExtractions = async (req: Request, res: Response): Promise<void> => {
       .select('-originalText')
       .sort({ createdAt: -1 });
     
-    res.json(extractions);
+    // Add sharing indicators to each extraction
+    const extractionsWithSharingInfo = extractions.map(extraction => ({
+      ...extraction,
+      isOwner: extraction.userId._id.toString() === (filterUserId || userId),
+      isShared: extraction.sharedWith.some((user: any) => user._id.toString() === (filterUserId || userId)),
+      canEdit: extraction.userId._id.toString() === (filterUserId || userId) || 
+               extraction.sharedWith.some((user: any) => user._id.toString() === (filterUserId || userId)),
+      canDelete: extraction.userId._id.toString() === (filterUserId || userId) || 
+                 userRole === 'admin' || userRole === 'superadmin'
+    }));
+    
+    res.json(extractionsWithSharingInfo);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch extractions' });
   }
