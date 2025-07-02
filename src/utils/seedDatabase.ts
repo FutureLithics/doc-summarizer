@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import User from '../models/User';
+import Organization from '../models/Organization';
 
 // Load environment variables
 dotenv.config();
@@ -111,8 +112,26 @@ export const seedDatabase = async () => {
       console.log('   ⚠️  Change password after first login!');
     }
 
+    // Check if default organization already exists
+    const existingOrganization = await Organization.findOne({ name: 'DocExtract Organization' });
+    
+    if (existingOrganization) {
+      console.log(`✅ Default organization already exists: ${existingOrganization.name}`);
+    } else {
+      // Create default organization
+      const organization = new Organization({
+        name: 'DocExtract Organization',
+        description: 'Default organization for document extraction and processing services'
+      });
+
+      await organization.save();
+      console.log('✅ Created default organization: DocExtract Organization');
+    }
+
     const userCount = await User.countDocuments();
+    const organizationCount = await Organization.countDocuments();
     console.log(`\n📊 Total users in database: ${userCount}`);
+    console.log(`📊 Total organizations in database: ${organizationCount}`);
     console.log('\n🎉 Database seeding completed successfully!');
 
   } catch (error) {

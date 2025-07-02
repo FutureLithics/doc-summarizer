@@ -70,7 +70,7 @@ const requireSuperAdmin = (req: any, res: Response, next: any) => {
  *         description: Organization name already exists
  */
 // Create organization (superadmin only)
-router.post('/', requireAuth as any, requireSuperAdmin, async (req: Request, res: Response) => {
+router.post('/', requireAuth as any, requireSuperAdmin as any, async (req: Request, res: Response) => {
   try {
     const { name, description } = req.body;
 
@@ -145,7 +145,7 @@ router.post('/', requireAuth as any, requireSuperAdmin, async (req: Request, res
  *         description: Superadmin access required
  */
 // Get all organizations (superadmin only)
-router.get('/', requireAuth as any, requireSuperAdmin, async (req: Request, res: Response) => {
+router.get('/', requireAuth as any, requireSuperAdmin as any, async (req: Request, res: Response) => {
   try {
     const organizations = await Organization.find({}).sort({ createdAt: -1 });
     res.json(organizations);
@@ -189,7 +189,7 @@ router.get('/', requireAuth as any, requireSuperAdmin, async (req: Request, res:
  *         description: Organization not found
  */
 // Delete organization (superadmin only)
-router.delete('/:id', requireAuth as any, requireSuperAdmin, async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth as any, requireSuperAdmin as any, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 

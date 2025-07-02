@@ -11,6 +11,7 @@ import routes from './routes';
 import authRoutes from './routes/auth';
 import extractionRoutes from './routes/extractions';
 import usersRoutes from './routes/users';
+import organizationsRoutes from './routes/organizations';
 import Extraction from './models/Extraction';
 
 const app: Express = express();
@@ -267,6 +268,7 @@ app.use('/api', routes);
 app.use('/api/auth', authRoutes); // Keep API routes
 app.use('/api/extractions', extractionRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/organizations', organizationsRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // 404 handler for any unmatched routes
