@@ -3,15 +3,12 @@
  * Organizations Management JavaScript - Handles organization management interface
  */
 
-console.log('Organizations.js loaded!'); // Debug log to verify file loading
-
 // Organizations management functionality
 let organizations = [];
 let currentOrganization = null;
 let isEditMode = false;
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOMContentLoaded fired!'); // Debug log
     // Initialize the page
     loadOrganizations();
     setupEventListeners();
@@ -213,7 +210,7 @@ function deleteOrganization(id) {
 
 function showOrganizationModal() {
     document.getElementById('organization-modal').classList.remove('hidden');
-    hideModalError(); // Clear any previous errors
+    hideModalError();
     document.getElementById('org-name').focus();
 }
 
@@ -429,7 +426,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Organization management system ready
+// Organization management system
 
 // Simple error display for modal
 function showModalError(message) {
@@ -439,6 +436,9 @@ function showModalError(message) {
     if (errorContainer && errorText) {
         errorText.textContent = message;
         errorContainer.classList.remove('hidden');
+    } else {
+        // Fallback to alert if modal elements not found
+        alert('Error: ' + message);
     }
 }
 
@@ -449,10 +449,3 @@ function hideModalError() {
     }
 }
 
-// Test function for debugging (simplified)
-function testModalError() {
-    showModalError('This is a test error message in the modal');
-}
-
-// Expose test function globally for debugging
-window.testModalError = testModalError;
