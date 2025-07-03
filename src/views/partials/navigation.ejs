@@ -8,6 +8,9 @@
                 <% if (user.role === 'admin' || user.role === 'superadmin') { %>
                     <a href="/users" class="text-gray-600 hover:text-blue-600 transition-colors">Users</a>
                 <% } %>
+                <% if (user.role === 'superadmin') { %>
+                    <a href="/organizations" class="text-gray-600 hover:text-blue-600 transition-colors">Organizations</a>
+                <% } %>
             <% } %>
         </div>
     </div>

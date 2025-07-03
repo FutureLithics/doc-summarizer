@@ -1,149 +1,112 @@
 <!-- src/views/organizations.ejs -->
-<div class="space-y-8">
-    <!-- Page Header -->
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between">
-        <div>
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">
-                🏢 Organization Management
-            </h1>
-            <p class="text-gray-600">
-                Manage system organizations
-            </p>
-        </div>
-        <div class="mt-4 md:mt-0">
-            <% if (user && user.role === 'superadmin') { %>
-            <button id="add-org-btn" class="btn-primary inline-flex items-center">
-                <span class="mr-2">➕</span>
-                Add Organization
-            </button>
-            <% } %>
-            <button id="refresh-orgs-btn" class="btn-secondary inline-flex items-center">
-                <span class="mr-2">🔄</span>
-                Refresh
-            </button>
-        </div>
+<div class="animate-fade-in">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">Organization Management</h1>
+        <button id="add-organization-btn" class="btn-primary">
+            <span class="mr-2">➕</span>
+            Add Organization
+        </button>
     </div>
 
-    <!-- Organizations Statistics -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-white rounded-lg border border-gray-200 p-6">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span class="text-blue-600 text-sm font-semibold">🏢</span>
+    <div class="grid gap-6">
+        <!-- Organization Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white p-6 rounded-lg shadow border">
+                <div class="flex items-center">
+                    <div class="p-3 bg-blue-100 rounded-full">
+                        <span class="text-2xl">🏢</span>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Total Organizations</p>
+                        <p class="text-2xl font-bold text-gray-900" id="total-organizations">-</p>
                     </div>
                 </div>
-                <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-600">Total Organizations</p>
-                    <p id="total-orgs" class="text-2xl font-semibold text-gray-900">-</p>
-                </div>
             </div>
-        </div>
-        
-        <div class="bg-white rounded-lg border border-gray-200 p-6">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <span class="text-green-600 text-sm font-semibold">✅</span>
+            <div class="bg-white p-6 rounded-lg shadow border">
+                <div class="flex items-center">
+                    <div class="p-3 bg-green-100 rounded-full">
+                        <span class="text-2xl">📅</span>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Created This Month</p>
+                        <p class="text-2xl font-bold text-gray-900" id="monthly-organizations">-</p>
                     </div>
                 </div>
-                <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-600">Active Organizations</p>
-                    <p id="active-orgs" class="text-2xl font-semibold text-gray-900">-</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow border">
+                <div class="flex items-center">
+                    <div class="p-3 bg-purple-100 rounded-full">
+                        <span class="text-2xl">🔧</span>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Management</p>
+                        <p class="text-2xl font-bold text-gray-900">Active</p>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Organizations Table -->
-    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg font-semibold text-gray-800">All Organizations</h3>
-        </div>
-        
-        <!-- Loading State -->
-        <div id="orgs-loading" class="px-6 py-8 text-center">
-            <div class="inline-flex items-center">
-                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                <span class="text-gray-600">Loading organizations...</span>
+        <!-- Organizations Table -->
+        <div class="card">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-900">Organizations</h2>
+                <div class="flex items-center space-x-4">
+                    <input type="text" id="search-organizations" placeholder="Search organizations..." 
+                           class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
             </div>
-        </div>
-
-        <!-- Error State -->
-        <div id="orgs-error" class="hidden px-6 py-8 text-center">
-            <div class="text-red-600 mb-2">⚠️ Failed to load organizations</div>
-            <button id="retry-load-btn" class="text-blue-600 hover:text-blue-800 text-sm">
-                Try again
-            </button>
-        </div>
-
-        <!-- Organizations Table Content -->
-        <div id="orgs-table-container" class="hidden">
+            
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
+                <table class="min-w-full table-auto">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Organization
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Description
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Created
-                            </th>
-                            <% if (user && user.role === 'superadmin') { %>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
-                            </th>
-                            <% } %>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="orgs-table-body" class="bg-white divide-y divide-gray-200">
-                        <!-- Organizations will be populated here -->
+                    <tbody id="organizations-table-body" class="bg-white divide-y divide-gray-200">
+                        <!-- Organizations will be loaded here via JavaScript -->
                     </tbody>
                 </table>
             </div>
-        </div>
 
-        <!-- Empty State -->
-        <div id="orgs-empty" class="hidden px-6 py-12 text-center">
-            <div class="text-gray-400 mb-4">
-                <svg class="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-4m-2 0H9m-2 0H5m2 0v-4a2 2 0 012-2h2a2 2 0 012 2v4" />
-                </svg>
+            <!-- Loading State -->
+            <div id="loading-organizations" class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p class="mt-2 text-gray-600">Loading organizations...</p>
             </div>
-            <h3 class="text-sm font-medium text-gray-900 mb-1">No organizations found</h3>
-            <p class="text-sm text-gray-500">There are no organizations in the system.</p>
+
+            <!-- Empty State -->
+            <div id="empty-organizations" class="text-center py-12 hidden">
+                <span class="text-6xl mb-4 block">🏢</span>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">No Organizations Found</h3>
+                <p class="text-gray-600 mb-4">Get started by creating your first organization.</p>
+                <button class="btn-primary" id="empty-add-organization-btn">
+                    <span class="mr-2">➕</span>
+                    Add Organization
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Add Organization Modal (Superadmin only) -->
-<% if (user && user.role === 'superadmin') { %>
-<div id="add-org-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-medium text-gray-900">Add New Organization</h3>
-                <button id="close-modal-btn" class="text-gray-400 hover:text-gray-600">
-                    <span class="sr-only">Close</span>
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+<!-- Add/Edit Organization Modal -->
+<div id="organization-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 id="modal-title" class="text-lg font-semibold text-gray-900">Add Organization</h3>
             </div>
             
-            <form id="add-org-form">
+            <form id="organization-form" class="px-6 py-4">
                 <div class="mb-4">
                     <label for="org-name" class="block text-sm font-medium text-gray-700 mb-2">
                         Organization Name *
                     </label>
-                    <input type="text" 
-                           id="org-name" 
-                           name="name" 
-                           required 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    <input type="text" id="org-name" name="name" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                            placeholder="Enter organization name">
                 </div>
                 
@@ -151,39 +114,49 @@
                     <label for="org-description" class="block text-sm font-medium text-gray-700 mb-2">
                         Description
                     </label>
-                    <textarea id="org-description" 
-                              name="description" 
-                              rows="3"
-                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    <textarea id="org-description" name="description" rows="3"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               placeholder="Enter organization description (optional)"></textarea>
                 </div>
                 
-                <!-- Error message -->
-                <div id="add-org-error" class="hidden mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded"></div>
+                <!-- Error Message Container -->
+                <div id="organization-error" class="hidden mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
+                    <div class="flex items-center">
+                        <span class="text-red-500 mr-2">⚠️</span>
+                        <span id="organization-error-text"></span>
+                    </div>
+                </div>
                 
                 <div class="flex justify-end space-x-3">
-                    <button type="button" 
-                            id="cancel-add-btn" 
-                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500">
-                        Cancel
-                    </button>
-                    <button type="submit" 
-                            id="submit-add-btn" 
-                            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <span id="submit-btn-text">Create Organization</span>
-                        <span id="submit-btn-loading" class="hidden">
-                            <div class="inline-flex items-center">
-                                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                Creating...
-                            </div>
-                        </span>
-                    </button>
+                    <button type="button" id="cancel-organization" class="btn-secondary">Cancel</button>
+                    <button type="submit" id="save-organization" class="btn-primary">Save Organization</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-<% } %>
 
-<!-- Organizations Management JavaScript -->
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Delete Organization</h3>
+            </div>
+            
+            <div class="px-6 py-4">
+                <p class="text-gray-700">Are you sure you want to delete "<span id="delete-org-name" class="font-semibold"></span>"?</p>
+                <p class="text-sm text-red-600 mt-2">This action cannot be undone.</p>
+            </div>
+            
+            <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
+                <button type="button" id="cancel-delete" class="btn-secondary">Cancel</button>
+                <button type="button" id="confirm-delete" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors">
+                    Delete Organization
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="/js/organizations.js"></script>

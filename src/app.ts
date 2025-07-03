@@ -189,6 +189,28 @@ app.get('/users', requireAuth as any, async (req: any, res) => {
   });
 });
 
+// Organizations management route (superadmin only)
+app.get('/organizations', requireAuth as any, async (req: any, res) => {
+  // Check if user is superadmin
+  const user = (req as any).user;
+  if (!user || user.role !== 'superadmin') {
+    res.status(403).render('layout', {
+      title: 'Access Denied',
+      page: 'error',
+      message: 'Super admin access required',
+      error: { status: 403 },
+      user: user || null
+    });
+    return;
+  }
+
+  res.render('layout', {
+    title: 'Organization Management',
+    page: 'organizations',
+    user: user
+  });
+});
+
 // User profile routes (protected)
 app.get('/profile', requireAuth as any, async (req: any, res) => {
   try {
@@ -260,8 +282,6 @@ app.get('/user/:id', requireAuth as any, requireAdmin as any, async (req: any, r
     });
   }
 });
-
-
 
 app.use('/', authRoutes); // Mount auth routes at root for web pages
 app.use('/api', routes);

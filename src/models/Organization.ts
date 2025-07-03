@@ -25,10 +25,4 @@ const organizationSchema = new Schema<IOrganization>({
   timestamps: true // Automatically adds createdAt and updatedAt
 });
 
-// Add indexes for better query performance
-organizationSchema.index({ name: 1 });
-organizationSchema.index({ createdAt: -1 });
-
-const Organization = mongoose.model<IOrganization>('Organization', organizationSchema);
-
-export default Organization;
+export default mongoose.model<IOrganization>('Organization', organizationSchema);

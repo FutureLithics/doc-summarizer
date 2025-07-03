@@ -3,437 +3,456 @@
  * Organizations Management JavaScript - Handles organization management interface
  */
 
+console.log('Organizations.js loaded!'); // Debug log to verify file loading
+
+// Organizations management functionality
+let organizations = [];
+let currentOrganization = null;
+let isEditMode = false;
+
 document.addEventListener('DOMContentLoaded', function() {
-    initializeOrganizationsPage();
+    console.log('DOMContentLoaded fired!'); // Debug log
+    // Initialize the page
+    loadOrganizations();
+    setupEventListeners();
 });
 
-/**
- * Initialize the organizations management page
- */
-function initializeOrganizationsPage() {
-    bindEventListeners();
-    loadOrganizations();
-}
-
-/**
- * Bind event listeners
- */
-function bindEventListeners() {
-    // Refresh button
-    const refreshBtn = document.getElementById('refresh-orgs-btn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
-            loadOrganizations();
-        });
+function setupEventListeners() {
+    // Add organization button
+    const addBtn = document.getElementById('add-organization-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', showAddOrganizationModal);
     }
 
-    // Retry button
-    const retryBtn = document.getElementById('retry-load-btn');
-    if (retryBtn) {
-        retryBtn.addEventListener('click', () => {
-            loadOrganizations();
-        });
+    // Empty state add button
+    const emptyAddBtn = document.getElementById('empty-add-organization-btn');
+    if (emptyAddBtn) {
+        emptyAddBtn.addEventListener('click', showAddOrganizationModal);
     }
 
-    // Add organization button (superadmin only)
-    const addOrgBtn = document.getElementById('add-org-btn');
-    if (addOrgBtn) {
-        addOrgBtn.addEventListener('click', () => {
-            showAddOrgModal();
-        });
+    // Modal form submission
+    const form = document.getElementById('organization-form');
+    if (form) {
+        form.addEventListener('submit', handleFormSubmit);
     }
 
-    // Modal close buttons
-    const closeModalBtn = document.getElementById('close-modal-btn');
-    const cancelAddBtn = document.getElementById('cancel-add-btn');
-    
-    if (closeModalBtn) {
-        closeModalBtn.addEventListener('click', () => {
-            hideAddOrgModal();
-        });
-    }
-    
-    if (cancelAddBtn) {
-        cancelAddBtn.addEventListener('click', () => {
-            hideAddOrgModal();
-        });
+    // Modal cancel buttons
+    const cancelBtn = document.getElementById('cancel-organization');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', hideOrganizationModal);
     }
 
-    // Add organization form
-    const addOrgForm = document.getElementById('add-org-form');
-    if (addOrgForm) {
-        addOrgForm.addEventListener('submit', handleAddOrganization);
+    const cancelDeleteBtn = document.getElementById('cancel-delete');
+    if (cancelDeleteBtn) {
+        cancelDeleteBtn.addEventListener('click', hideDeleteModal);
     }
 
-    // Close modal when clicking outside
-    const modal = document.getElementById('add-org-modal');
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                hideAddOrgModal();
-            }
-        });
+    // Confirm delete button
+    const confirmDeleteBtn = document.getElementById('confirm-delete');
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', handleDeleteConfirm);
     }
 
-    // Event delegation for dynamically created delete buttons
-    const orgsTableBody = document.getElementById('orgs-table-body');
-    if (orgsTableBody) {
-        orgsTableBody.addEventListener('click', (e) => {
-            const target = e.target;
-            const orgId = target.closest('tr')?.getAttribute('data-org-id');
-            
-            if (!orgId) return;
+    // Search functionality
+    const searchInput = document.getElementById('search-organizations');
+    if (searchInput) {
+        searchInput.addEventListener('input', handleSearch);
+    }
 
-            if (target.classList.contains('delete-btn')) {
-                e.preventDefault();
+    // Event delegation for dynamically created buttons
+    const tbody = document.getElementById('organizations-table-body');
+    if (tbody) {
+        tbody.addEventListener('click', function(e) {
+            if (e.target.classList.contains('edit-btn')) {
+                const orgId = e.target.getAttribute('data-org-id');
+                editOrganization(orgId);
+            } else if (e.target.classList.contains('delete-btn')) {
+                const orgId = e.target.getAttribute('data-org-id');
                 deleteOrganization(orgId);
             }
         });
     }
-}
 
-/**
- * Show the add organization modal
- */
-function showAddOrgModal() {
-    const modal = document.getElementById('add-org-modal');
-    const form = document.getElementById('add-org-form');
-    const errorDiv = document.getElementById('add-org-error');
-    
-    // Reset form and hide error
-    form.reset();
-    errorDiv.classList.add('hidden');
-    errorDiv.textContent = '';
-    
-    // Show modal
-    modal.classList.remove('hidden');
-    
-    // Focus on name input
-    const nameInput = document.getElementById('org-name');
-    if (nameInput) {
-        setTimeout(() => nameInput.focus(), 100);
-    }
-}
-
-/**
- * Hide the add organization modal
- */
-function hideAddOrgModal() {
-    const modal = document.getElementById('add-org-modal');
-    modal.classList.add('hidden');
-}
-
-/**
- * Handle add organization form submission
- * @param {Event} event - Form submit event
- */
-async function handleAddOrganization(event) {
-    event.preventDefault();
-    
-    const form = event.target;
-    const formData = new FormData(form);
-    const orgData = {
-        name: formData.get('name'),
-        description: formData.get('description')
-    };
-    
-    // Show loading state
-    setAddOrgLoading(true);
-    hideAddOrgError();
-    
-    try {
-        const response = await fetch('/api/organizations', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(orgData)
-        });
-        
-        const result = await response.json();
-        
-        if (!response.ok) {
-            throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+    // Close modals when clicking outside
+    document.getElementById('organization-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideOrganizationModal();
         }
-        
-        // Success - hide modal and refresh organizations list
-        hideAddOrgModal();
-        loadOrganizations();
-        
-        console.log('Organization created successfully:', result);
-        
-    } catch (error) {
-        console.error('Failed to create organization:', error);
-        showAddOrgError(error.message);
-    } finally {
-        setAddOrgLoading(false);
-    }
-}
+    });
 
-/**
- * Set loading state for add organization form
- * @param {boolean} loading - Whether form is in loading state
- */
-function setAddOrgLoading(loading) {
-    const submitBtn = document.getElementById('submit-add-btn');
-    const submitText = document.getElementById('submit-btn-text');
-    const submitLoading = document.getElementById('submit-btn-loading');
-    
-    if (loading) {
-        submitBtn.disabled = true;
-        submitText.classList.add('hidden');
-        submitLoading.classList.remove('hidden');
-    } else {
-        submitBtn.disabled = false;
-        submitText.classList.remove('hidden');
-        submitLoading.classList.add('hidden');
-    }
-}
-
-/**
- * Show error message in add organization form
- * @param {string} message - Error message to display
- */
-function showAddOrgError(message) {
-    const errorDiv = document.getElementById('add-org-error');
-    errorDiv.textContent = message;
-    errorDiv.classList.remove('hidden');
-}
-
-/**
- * Hide error message in add organization form
- */
-function hideAddOrgError() {
-    const errorDiv = document.getElementById('add-org-error');
-    errorDiv.classList.add('hidden');
-    errorDiv.textContent = '';
-}
-
-/**
- * Load organizations from the API
- */
-async function loadOrganizations() {
-    showLoadingState();
-    
-    try {
-        const response = await fetch('/api/organizations', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    document.getElementById('delete-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideDeleteModal();
         }
-        
-        const organizations = await response.json();
-        displayOrganizations(organizations);
-        updateStatistics(organizations);
-        
-    } catch (error) {
-        console.error('Failed to load organizations:', error);
-        showErrorState();
-    }
-}
-
-/**
- * Display organizations in the table
- * @param {Array} organizations - Array of organization objects
- */
-function displayOrganizations(organizations) {
-    const tableContainer = document.getElementById('orgs-table-container');
-    const emptyState = document.getElementById('orgs-empty');
-    const loadingState = document.getElementById('orgs-loading');
-    const errorState = document.getElementById('orgs-error');
-    
-    // Hide loading and error states
-    loadingState.classList.add('hidden');
-    errorState.classList.add('hidden');
-    
-    if (!organizations || organizations.length === 0) {
-        // Show empty state
-        tableContainer.classList.add('hidden');
-        emptyState.classList.remove('hidden');
-        return;
-    }
-    
-    // Show table and populate with organizations
-    emptyState.classList.add('hidden');
-    tableContainer.classList.remove('hidden');
-    
-    const tableBody = document.getElementById('orgs-table-body');
-    tableBody.innerHTML = '';
-    
-    organizations.forEach(org => {
-        const row = createOrganizationRow(org);
-        tableBody.appendChild(row);
     });
 }
 
-/**
- * Create a table row for an organization
- * @param {Object} org - Organization object
- * @returns {HTMLElement} Table row element
- */
-function createOrganizationRow(org) {
-    const row = document.createElement('tr');
-    row.className = 'hover:bg-gray-50';
-    row.setAttribute('data-org-id', org._id);
+async function loadOrganizations() {
+    try {
+        showLoading();
+        const response = await fetch('/api/organizations');
+        
+        if (!response.ok) {
+            throw new Error('Failed to load organizations');
+        }
+
+        organizations = await response.json();
+        renderOrganizations(organizations);
+        updateStats();
+        
+    } catch (error) {
+        console.error('Error loading organizations:', error);
+        showError('Failed to load organizations');
+    }
+}
+
+function renderOrganizations(orgsToRender = organizations) {
+    const tbody = document.getElementById('organizations-table-body');
+    const loading = document.getElementById('loading-organizations');
+    const empty = document.getElementById('empty-organizations');
+
+    // Hide loading
+    if (loading) {
+        loading.style.display = 'none';
+    }
+
+    if (orgsToRender.length === 0) {
+        tbody.innerHTML = '';
+        if (empty) {
+            empty.classList.remove('hidden');
+        }
+        return;
+    }
+
+    if (empty) {
+        empty.classList.add('hidden');
+    }
+
+    tbody.innerHTML = orgsToRender.map(org => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-gray-900">${escapeHtml(org.name)}</div>
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-sm text-gray-600 max-w-xs truncate">
+                    ${org.description ? escapeHtml(org.description) : '<span class="text-gray-400">No description</span>'}
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                ${formatDate(org.createdAt)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <button data-org-id="${org._id}" class="text-blue-600 hover:text-blue-900 mr-3 edit-btn">
+                    Edit
+                </button>
+                <button data-org-id="${org._id}" class="text-red-600 hover:text-red-900 delete-btn">
+                    Delete
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function updateStats() {
+    const totalElement = document.getElementById('total-organizations');
+    const monthlyElement = document.getElementById('monthly-organizations');
+
+    if (totalElement) {
+        totalElement.textContent = organizations.length;
+    }
+
+    if (monthlyElement) {
+        const currentMonth = new Date().getMonth();
+        const currentYear = new Date().getFullYear();
+        const monthlyCount = organizations.filter(org => {
+            const orgDate = new Date(org.createdAt);
+            return orgDate.getMonth() === currentMonth && orgDate.getFullYear() === currentYear;
+        }).length;
+        monthlyElement.textContent = monthlyCount;
+    }
+}
+
+function showAddOrganizationModal() {
+    isEditMode = false;
+    currentOrganization = null;
     
-    // Format creation date
-    const createdDate = new Date(org.createdAt).toLocaleDateString('en-US', {
+    document.getElementById('modal-title').textContent = 'Add Organization';
+    document.getElementById('save-organization').textContent = 'Save Organization';
+    
+    // Clear form
+    document.getElementById('organization-form').reset();
+    
+    showOrganizationModal();
+}
+
+function editOrganization(id) {
+    const org = organizations.find(o => o._id === id);
+    if (!org) return;
+
+    isEditMode = true;
+    currentOrganization = org;
+    
+    document.getElementById('modal-title').textContent = 'Edit Organization';
+    document.getElementById('save-organization').textContent = 'Update Organization';
+    
+    // Populate form
+    document.getElementById('org-name').value = org.name;
+    document.getElementById('org-description').value = org.description || '';
+    
+    showOrganizationModal();
+}
+
+function deleteOrganization(id) {
+    const org = organizations.find(o => o._id === id);
+    if (!org) return;
+
+    currentOrganization = org;
+    document.getElementById('delete-org-name').textContent = org.name;
+    showDeleteModal();
+}
+
+function showOrganizationModal() {
+    document.getElementById('organization-modal').classList.remove('hidden');
+    hideModalError(); // Clear any previous errors
+    document.getElementById('org-name').focus();
+}
+
+function hideOrganizationModal() {
+    document.getElementById('organization-modal').classList.add('hidden');
+    document.getElementById('organization-form').reset();
+    currentOrganization = null;
+    isEditMode = false;
+}
+
+function showDeleteModal() {
+    document.getElementById('delete-modal').classList.remove('hidden');
+}
+
+function hideDeleteModal() {
+    document.getElementById('delete-modal').classList.add('hidden');
+    currentOrganization = null;
+}
+
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const data = {
+        name: formData.get('name').trim(),
+        description: formData.get('description').trim()
+    };
+
+    if (!data.name) {
+        showNotification('Organization name is required', 'error');
+        return;
+    }
+
+    const saveBtn = document.getElementById('save-organization');
+    const originalText = saveBtn.textContent;
+
+    try {
+        saveBtn.textContent = 'Saving...';
+        saveBtn.disabled = true;
+
+        let response;
+        if (isEditMode && currentOrganization) {
+            response = await fetch(`/api/organizations/${currentOrganization._id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+        } else {
+            response = await fetch('/api/organizations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+        }
+
+        if (!response.ok) {
+            let errorMessage = 'Failed to save organization';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || errorMessage;
+            } catch (jsonError) {
+                console.warn('Failed to parse error response as JSON:', jsonError);
+                errorMessage = `Server error: ${response.status} ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+        }
+
+        const result = await response.json();
+        
+        if (isEditMode) {
+            // Update existing organization in the list
+            const index = organizations.findIndex(o => o._id === currentOrganization._id);
+            if (index !== -1) {
+                organizations[index] = result;
+            }
+        } else {
+            // Add new organization to the list
+            organizations.push(result);
+        }
+
+        renderOrganizations();
+        updateStats();
+        hideOrganizationModal();
+
+    } catch (error) {
+        console.error('Error saving organization:', error);
+        showModalError(error.message || 'An error occurred while saving the organization');
+    } finally {
+        saveBtn.textContent = originalText;
+        saveBtn.disabled = false;
+    }
+}
+
+async function handleDeleteConfirm() {
+    if (!currentOrganization) return;
+
+    const deleteBtn = document.getElementById('confirm-delete');
+    const originalText = deleteBtn.textContent;
+
+    try {
+        deleteBtn.textContent = 'Deleting...';
+        deleteBtn.disabled = true;
+
+        const response = await fetch(`/api/organizations/${currentOrganization._id}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            let errorMessage = 'Failed to delete organization';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || errorMessage;
+            } catch (jsonError) {
+                console.warn('Failed to parse error response as JSON:', jsonError);
+                errorMessage = `Server error: ${response.status} ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+        }
+
+        // Remove from local list
+        organizations = organizations.filter(o => o._id !== currentOrganization._id);
+        
+        renderOrganizations();
+        updateStats();
+        hideDeleteModal();
+        alert('Organization deleted successfully');
+
+    } catch (error) {
+        console.error('Error deleting organization:', error);
+        alert('Error: ' + (error.message || 'An error occurred while deleting the organization'));
+    } finally {
+        deleteBtn.textContent = originalText;
+        deleteBtn.disabled = false;
+    }
+}
+
+function handleSearch(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    
+    if (!searchTerm) {
+        renderOrganizations();
+        return;
+    }
+
+    const filtered = organizations.filter(org => 
+        org.name.toLowerCase().includes(searchTerm) ||
+        (org.description && org.description.toLowerCase().includes(searchTerm))
+    );
+
+    renderOrganizations(filtered);
+}
+
+function showLoading() {
+    const loading = document.getElementById('loading-organizations');
+    const empty = document.getElementById('empty-organizations');
+    
+    if (loading) {
+        loading.style.display = 'block';
+    }
+    if (empty) {
+        empty.classList.add('hidden');
+    }
+}
+
+function showError(message) {
+    const loading = document.getElementById('loading-organizations');
+    const tbody = document.getElementById('organizations-table-body');
+    
+    if (loading) {
+        loading.style.display = 'none';
+    }
+    
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="px-6 py-8 text-center">
+                    <div class="text-red-600 mb-2">⚠️ ${message}</div>
+                    <button class="text-blue-600 hover:text-blue-800 text-sm retry-load-btn">
+                        Try again
+                    </button>
+                </td>
+            </tr>
+        `;
+        
+        // Add event listener for retry button
+        const retryBtn = tbody.querySelector('.retry-load-btn');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', loadOrganizations);
+        }
+    }
+}
+
+// Utility functions
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric'
     });
-    
-    // Check if current user is superadmin (from global user object)
-    const isSuperAdmin = window.user && window.user.role === 'superadmin';
-    
-    row.innerHTML = `
-        <td class="px-6 py-4 whitespace-nowrap">
-            <div class="flex items-center">
-                <div class="flex-shrink-0 h-10 w-10">
-                    <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                        <span class="text-blue-600 font-medium text-sm">
-                            🏢
-                        </span>
-                    </div>
-                </div>
-                <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900">
-                        ${escapeHtml(org.name)}
-                    </div>
-                    <div class="text-sm text-gray-500">
-                        ID: ${org._id}
-                    </div>
-                </div>
-            </div>
-        </td>
-        <td class="px-6 py-4">
-            <div class="text-sm text-gray-900">
-                ${org.description ? escapeHtml(org.description) : '<span class="text-gray-400 italic">No description</span>'}
-            </div>
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-            ${createdDate}
-        </td>
-        ${isSuperAdmin ? `
-        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-            <button class="text-red-600 hover:text-red-900 delete-btn">
-                Delete
-            </button>
-        </td>
-        ` : ''}
-    `;
-    
-    return row;
 }
 
-/**
- * Delete organization
- * @param {string} orgId - Organization ID
- */
-async function deleteOrganization(orgId) {
-    const row = document.querySelector(`tr[data-org-id="${orgId}"]`);
-    if (!row) return;
+// Removed complex toast notification system - using simple modal errors instead
 
-    const orgName = row.querySelector('.text-sm.font-medium.text-gray-900').textContent.trim();
-
-    if (!confirm(`Are you sure you want to delete organization "${orgName}"? This action cannot be undone.`)) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/organizations/${orgId}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        // Remove the row from the table
-        row.remove();
-
-        // Refresh the organizations list to update statistics
-        loadOrganizations();
-
-        console.log('Organization deleted successfully');
-
-    } catch (error) {
-        console.error('Failed to delete organization:', error);
-        alert(`Failed to delete organization: ${error.message}`);
-    }
-}
-
-/**
- * Update organization statistics
- * @param {Array} organizations - Array of organization objects
- */
-function updateStatistics(organizations) {
-    const totalOrgs = organizations.length;
-    const activeOrgs = organizations.length; // All organizations are considered active for now
-    
-    // Update DOM elements
-    const totalElement = document.getElementById('total-orgs');
-    const activeElement = document.getElementById('active-orgs');
-    
-    if (totalElement) totalElement.textContent = totalOrgs;
-    if (activeElement) activeElement.textContent = activeOrgs;
-}
-
-/**
- * Show loading state
- */
-function showLoadingState() {
-    const loadingState = document.getElementById('orgs-loading');
-    const errorState = document.getElementById('orgs-error');
-    const tableContainer = document.getElementById('orgs-table-container');
-    const emptyState = document.getElementById('orgs-empty');
-    
-    loadingState.classList.remove('hidden');
-    errorState.classList.add('hidden');
-    tableContainer.classList.add('hidden');
-    emptyState.classList.add('hidden');
-    
-    // Reset statistics to loading state
-    document.getElementById('total-orgs').textContent = '-';
-    document.getElementById('active-orgs').textContent = '-';
-}
-
-/**
- * Show error state
- */
-function showErrorState() {
-    const loadingState = document.getElementById('orgs-loading');
-    const errorState = document.getElementById('orgs-error');
-    const tableContainer = document.getElementById('orgs-table-container');
-    const emptyState = document.getElementById('orgs-empty');
-    
-    loadingState.classList.add('hidden');
-    errorState.classList.remove('hidden');
-    tableContainer.classList.add('hidden');
-    emptyState.classList.add('hidden');
-    
-    // Reset statistics
-    document.getElementById('total-orgs').textContent = '-';
-    document.getElementById('active-orgs').textContent = '-';
-}
-
-/**
- * Escape HTML to prevent XSS
- * @param {string} text - Text to escape
- * @returns {string} Escaped HTML
- */
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
+
+// Organization management system ready
+
+// Simple error display for modal
+function showModalError(message) {
+    const errorContainer = document.getElementById('organization-error');
+    const errorText = document.getElementById('organization-error-text');
+    
+    if (errorContainer && errorText) {
+        errorText.textContent = message;
+        errorContainer.classList.remove('hidden');
+    }
+}
+
+function hideModalError() {
+    const errorContainer = document.getElementById('organization-error');
+    if (errorContainer) {
+        errorContainer.classList.add('hidden');
+    }
+}
+
+// Test function for debugging (simplified)
+function testModalError() {
+    showModalError('This is a test error message in the modal');
+}
+
+// Expose test function globally for debugging
+window.testModalError = testModalError;
