@@ -85,7 +85,7 @@ router.get('/', requireAuth as any, async (req: any, res: Response) => {
 
     if (userRole === 'admin' || userRole === 'superadmin') {
       // Admins get full user list with all details
-      const users = await User.find({}, 'email role createdAt').sort({ createdAt: -1 });
+      const users = await User.find({}, '_id email role createdAt').sort({ createdAt: -1 });
       res.json(users);
     } else if (forSharing === 'true') {
       // Regular users get limited list for sharing purposes only

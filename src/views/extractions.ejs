@@ -52,6 +52,9 @@
                                     File Name
                                 </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Author
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Status
                                 </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -59,7 +62,7 @@
                                 </th>
                                 <% if (user && user.role === 'superadmin') { %>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Assigned To
+                                    Admin Actions
                                 </th>
                                 <% } %>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -80,6 +83,36 @@
                                                title="<%= extraction.fileName || 'Unknown' %>">
                                                 <%= (extraction.fileName || 'Unknown').length > 100 ? (extraction.fileName || 'Unknown').substring(0, 100) + '...' : (extraction.fileName || 'Unknown') %>
                                             </a>
+                                            <% if (!extraction.isOwner && extraction.isShared) { %>
+                                                <span class="ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                                    Shared
+                                                </span>
+                                            <% } %>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm text-gray-900">
+                                            <% if (extraction.userId && extraction.userId.email) { %>
+                                                <%= extraction.userId.email %>
+                                                <% if (extraction.isOwner) { %>
+                                                    <span class="ml-1 text-xs text-gray-500">(You)</span>
+                                                <% } %>
+                                                <% if (extraction.userId.role && extraction.userId.role !== 'user') { %>
+                                                    <div class="mt-1">
+                                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
+                                                            <% if (extraction.userId.role === 'admin') { %>
+                                                                bg-purple-100 text-purple-800
+                                                            <% } else if (extraction.userId.role === 'superadmin') { %>
+                                                                bg-red-100 text-red-800
+                                                            <% } %>
+                                                        ">
+                                                            <%= extraction.userId.role === 'admin' ? '👑 Admin' : '🔥 Super Admin' %>
+                                                        </span>
+                                                    </div>
+                                                <% } %>
+                                            <% } else { %>
+                                                <span class="text-gray-500">Unknown</span>
+                                            <% } %>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
@@ -198,4 +231,4 @@
 </div>
 <% } %>
 
-<script src="/js/extractions.js"></script>
+<script type="module" src="/js/extractions-modular.js"></script>

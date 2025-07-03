@@ -425,7 +425,8 @@ const reassignExtraction = async (req: Request, res: Response): Promise<void> =>
 const validateExtractionAccess = async (
   extractionId: string,
   currentUserId: string,
-  requireOwnership: boolean = false
+  requireOwnership: boolean = false,
+  userRole?: string
 ): Promise<{ extraction: any; error?: { status: number; message: string } }> => {
   // Check if extraction ID is valid
   if (!mongoose.Types.ObjectId.isValid(extractionId)) {
@@ -439,11 +440,16 @@ const validateExtractionAccess = async (
   }
 
   // Check ownership if required
-  if (requireOwnership && extraction.userId.toString() !== currentUserId) {
-    return { 
-      extraction: null, 
-      error: { status: 403, message: 'Only the owner can perform this action' } 
-    };
+  if (requireOwnership) {
+    const isOwner = extraction.userId.toString() === currentUserId;
+    const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+    
+    if (!isOwner && !isAdmin) {
+      return { 
+        extraction: null, 
+        error: { status: 403, message: 'Only the owner can perform this action' } 
+      };
+    }
   }
 
   return { extraction };
@@ -509,6 +515,7 @@ const shareExtraction = async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
     const { userId: shareWithUserId } = req.body;
     const currentUserId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
 
     // Validate authentication
     if (!currentUserId) {
@@ -522,8 +529,8 @@ const shareExtraction = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Validate extraction and ownership
-    const { extraction, error: extractionError } = await validateExtractionAccess(id, currentUserId, true);
+    // Validate extraction and ownership (now includes admin/superadmin check)
+    const { extraction, error: extractionError } = await validateExtractionAccess(id, currentUserId, true, userRole);
     if (extractionError) {
       res.status(extractionError.status).json({ message: extractionError.message });
       return;
@@ -596,6 +603,7 @@ const unshareExtraction = async (req: Request, res: Response): Promise<void> => 
     const { id } = req.params;
     const { userId: unshareUserId } = req.body;
     const currentUserId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
 
     // Validate authentication
     if (!currentUserId) {
@@ -609,8 +617,8 @@ const unshareExtraction = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Validate extraction and ownership
-    const { extraction, error: extractionError } = await validateExtractionAccess(id, currentUserId, true);
+    // Validate extraction and ownership (now includes admin/superadmin check)
+    const { extraction, error: extractionError } = await validateExtractionAccess(id, currentUserId, true, userRole);
     if (extractionError) {
       res.status(extractionError.status).json({ message: extractionError.message });
       return;

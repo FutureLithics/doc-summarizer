@@ -92,20 +92,46 @@ app.get('/extractions', requireAuth as any, async (req: any, res) => {
     const userId = (req as any).user?.id;
     const userRole = (req as any).user?.role;
 
-    // Admins and superadmins can see all extractions, regular users only see their own
-    const filter = (userRole === 'admin' || userRole === 'superadmin') ? {} : { userId };
+    // Build filter based on user role
+    let filter;
+    if (userRole === 'admin' || userRole === 'superadmin') {
+      // Admins and superadmins can see all extractions
+      filter = {};
+    } else {
+      // Regular users see their own extractions and ones shared with them
+      filter = {
+        $or: [
+          { userId: userId },
+          { sharedWith: userId }
+        ]
+      };
+    }
 
-    // Fetch extractions with populated user data for superadmin view
+    // Fetch extractions with populated user data for author display
     const extractions = await Extraction.find(filter)
       .populate('userId', 'email role')
-      .select('_id summary createdAt fileName status userId')
+      .populate('sharedWith', 'email role')
+      .select('_id summary createdAt fileName status userId sharedWith')
       .sort({ createdAt: -1 }) // Most recent first
       .lean();
+
+    // Add permission flags for each extraction
+    const extractionsWithPermissions = extractions.map(extraction => {
+      const isOwner = extraction.userId._id.toString() === userId;
+      const isShared = extraction.sharedWith && extraction.sharedWith.some((user: any) => user._id.toString() === userId);
+      
+      return {
+        ...extraction,
+        isOwner,
+        isShared,
+        canShare: isOwner || userRole === 'admin' || userRole === 'superadmin'
+      };
+    });
 
     res.render('layout', {
       title: 'Extractions',
       page: 'extractions',
-      extractions,
+      extractions: extractionsWithPermissions,
       user: (req as any).user || null
     });
   } catch (error) {
@@ -122,22 +148,74 @@ app.get('/extractions', requireAuth as any, async (req: any, res) => {
 
 app.get('/extraction/:id', requireAuth as any, async (req: any, res) => {
   try {
-    const extraction = await Extraction.findById(req.params.id).lean();
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
+    
+    if (!userId) {
+      return res.status(401).render('layout', {
+        title: 'Authentication Required',
+        page: 'error',
+        message: 'You must be logged in to view this extraction.',
+        error: { status: 401 },
+        user: null
+      });
+    }
+
+    // Superadmins can access any extraction without restrictions
+    let extraction;
+    if (userRole === 'superadmin') {
+      extraction = await Extraction.findById(req.params.id)
+        .populate('userId', 'email role')
+        .populate('sharedWith', 'email role')
+        .lean();
+    } else {
+      // Build filter to check access permissions for non-superadmins
+      let filter;
+      if (userRole === 'admin') {
+        // Admins can access any extraction
+        filter = { _id: req.params.id };
+      } else {
+        // Regular users can only access their own extractions or ones shared with them
+        filter = {
+          _id: req.params.id,
+          $or: [
+            { userId: userId },
+            { sharedWith: userId }
+          ]
+        };
+      }
+
+      // Fetch extraction with populated user data
+      extraction = await Extraction.findOne(filter)
+        .populate('userId', 'email role')
+        .populate('sharedWith', 'email role')
+        .lean();
+    }
     
     if (!extraction) {
       return res.status(404).render('layout', {
         title: 'Extraction Not Found',
         page: 'error',
-        message: `The extraction with ID "${req.params.id}" was not found.`,
+        message: `The extraction with ID "${req.params.id}" was not found or you don't have permission to access it.`,
         error: { status: 404 },
         user: (req as any).user || null
       });
     }
 
+    // Add permission flags for the template
+    const isOwner = extraction.userId._id.toString() === userId;
+    const isShared = extraction.sharedWith && extraction.sharedWith.some((user: any) => user._id.toString() === userId);
+    const canShare = isOwner || userRole === 'admin' || userRole === 'superadmin';
+    const canEdit = isOwner || isShared || userRole === 'admin' || userRole === 'superadmin';
+
     res.render('layout', {
       title: 'Extraction Details',
       page: 'extraction',
       extraction,
+      isOwner,
+      isShared,
+      canShare,
+      canEdit,
       user: (req as any).user || null
     });
   } catch (error) {
@@ -149,21 +227,6 @@ app.get('/extraction/:id', requireAuth as any, async (req: any, res) => {
       error: { status: 500 },
       user: (req as any).user || null
     });
-  }
-});
-
-app.get('/extractions/:id', requireAuth as any, async (req: any, res) => {
-  try {
-    const { id } = req.params;
-    const extraction = await Extraction.findById(id);
-    res.render('layout', {
-      title: 'Extraction Details',
-      page: 'extraction',
-      extraction,
-      user: (req as any).user || null
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch extraction' });
   }
 });
 

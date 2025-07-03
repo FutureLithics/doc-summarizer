@@ -46,19 +46,31 @@
                                 Updated: <%= new Date(extraction.updatedAt).toLocaleString() %>
                             </span>
                         <% } %>
+                        <% if (extraction.userId && extraction.userId.email) { %>
+                            <span class="text-sm text-gray-500">
+                                By: <%= extraction.userId.email %>
+                                <% if (!isOwner) { %>
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 ml-1">
+                                        <%= (typeof isShared !== 'undefined' && isShared) ? 'Shared' : 'View Only' %>
+                                    </span>
+                                <% } %>
+                            </span>
+                        <% } %>
                     </div>
                 </div>
                 <div class="mt-4 md:mt-0">
-                    <% if (extraction.userId && extraction.userId._id && (user.id === extraction.userId._id.toString() || user.role === 'admin' || user.role === 'superadmin')) { %>
+                    <% if (canShare) { %>
                         <button id="share-btn" class="btn-secondary inline-flex items-center mr-2">
                             <span class="mr-2">👥</span>
                             Share
                         </button>
                     <% } %>
-                    <button id="edit-btn" class="btn-secondary inline-flex items-center">
-                        <span class="mr-2">✏️</span>
-                        <span id="edit-btn-text">Edit</span>
-                    </button>
+                    <% if (canEdit) { %>
+                        <button id="edit-btn" class="btn-secondary inline-flex items-center">
+                            <span class="mr-2">✏️</span>
+                            <span id="edit-btn-text">Edit</span>
+                        </button>
+                    <% } %>
                     <a href="/extractions" class="btn-primary">
                         <span class="mr-2">←</span>
                         Back to List
@@ -108,6 +120,33 @@
                             <%= extraction._id %>
                         </dd>
                     </div>
+                    <% if (extraction.userId && extraction.userId.email) { %>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-600">Author</dt>
+                            <dd class="text-sm text-gray-900 flex items-center space-x-2">
+                                <span><%= extraction.userId.email %></span>
+                                <% if (extraction.userId.role && extraction.userId.role !== 'user') { %>
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
+                                        <% if (extraction.userId.role === 'admin') { %>
+                                            bg-purple-100 text-purple-800
+                                        <% } else if (extraction.userId.role === 'superadmin') { %>
+                                            bg-red-100 text-red-800
+                                        <% } %>
+                                    ">
+                                        <%= extraction.userId.role === 'admin' ? '👑 Admin' : '🔥 Super Admin' %>
+                                    </span>
+                                <% } %>
+                            </dd>
+                        </div>
+                    <% } %>
+                    <% if (extraction.sharedWith && extraction.sharedWith.length > 0) { %>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-600">Shared With</dt>
+                            <dd class="text-sm text-gray-900">
+                                <%= extraction.sharedWith.length %> user<%= extraction.sharedWith.length === 1 ? '' : 's' %>
+                            </dd>
+                        </div>
+                    <% } %>
                 </dl>
             </div>
 
@@ -294,4 +333,4 @@
     </div>
 </div>
 
-<script src="/js/extraction.js"></script>
+<script type="module" src="/js/extraction-modular.js"></script>
